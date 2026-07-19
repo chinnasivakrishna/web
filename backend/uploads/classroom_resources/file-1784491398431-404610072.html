@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Door Handles | TAITON</title>
+
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  --primary:#003E7E;
+  --secondary:#0D63C9;
+  --accent:#4FA3FF;
+  --bg:#F8FAFC;
+  --light-section:#EEF6FF;
+  --border:#DCE5F0;
+  --text-1:#0D63C9;
+  --text-2:#1E293B;
+  --text-secondary:#475569;
+}
+*{box-sizing:border-box;}
+body{font-family:'Inter',sans-serif; color:var(--text-2); background:var(--bg);}
+h1,h2,h3,h4,.font-display{font-family:'Poppins',sans-serif;}
+a{text-decoration:none;}
+.text-primary-custom{color:var(--primary)!important;}
+.text-secondary-custom{color:var(--secondary)!important;}
+.text-muted-custom{color:var(--text-secondary)!important;}
+.bg-primary-custom{background:var(--primary)!important;}
+.bg-light-section{background:var(--light-section)!important;}
+.border-custom{border-color:var(--border)!important;}
+
+.btn-primary-custom{background:var(--primary); color:#fff; border:1px solid var(--primary); padding:.65rem 1.5rem; border-radius:6px; font-weight:600; font-size:.9rem;}
+.btn-primary-custom:hover{background:var(--secondary); color:#fff; border-color:var(--secondary);}
+.btn-outline-custom{background:#fff; color:var(--primary); border:1.5px solid var(--primary); padding:.6rem 1.4rem; border-radius:6px; font-weight:600; font-size:.9rem;}
+.btn-outline-custom:hover{background:var(--primary); color:#fff;}
+
+.placeholder-img{
+  background:repeating-linear-gradient(135deg,var(--light-section),var(--light-section) 10px,#e3edfb 10px,#e3edfb 20px);
+  border:1px dashed var(--accent); color:var(--secondary);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  border-radius:10px; width:100%; height:100%; min-height:140px; text-align:center; font-size:.78rem; font-weight:600; gap:.3rem; padding:.5rem;
+}
+.placeholder-img i{font-size:1.4rem;}
+
+/* Header (shared) */
+.main-nav{background:#fff; box-shadow:0 2px 10px rgba(0,0,0,.05); position:sticky; top:0; z-index:1030;}
+.logo-text{font-family:'Poppins',sans-serif; font-weight:800; font-size:1.6rem; color:var(--primary); letter-spacing:1px;}
+.nav-bar{background:var(--primary);}
+.nav-menu a{color:#fff; font-weight:600; font-size:.88rem; padding:.85rem 1rem; display:inline-block;}
+.nav-menu a:hover{color:var(--accent);}
+.icon-btn{width:38px;height:38px;border-radius:50%;background:var(--light-section); display:inline-flex;align-items:center;justify-content:center;color:var(--primary); margin-left:.5rem; font-size:1rem; position:relative;}
+.icon-btn .dot{position:absolute; top:2px; right:2px; width:8px;height:8px;border-radius:50%; background:#dc3545; border:1.5px solid #fff;}
+.user-chip{display:flex; align-items:center; gap:.5rem; margin-left:.6rem; cursor:pointer;}
+.user-avatar{width:38px;height:38px;border-radius:50%; background:var(--primary); color:#fff; display:flex;align-items:center;justify-content:center; font-weight:700; font-size:.85rem;}
+.user-chip .name{font-size:.8rem; font-weight:700; line-height:1.1;}
+.user-chip .role{font-size:.7rem; color:var(--text-secondary);}
+
+/* Breadcrumb */
+.breadcrumb-bar{font-size:.85rem; color:var(--text-secondary); padding:.9rem 0;}
+.breadcrumb-bar a{color:var(--text-secondary);}
+.breadcrumb-bar a:hover{color:var(--secondary);}
+
+/* Hero banner */
+.category-hero{background:var(--light-section); border-radius:14px; overflow:hidden; position:relative;}
+.category-hero .img-side{min-height:320px;}
+
+/* Floating vertical side tabs */
+.side-tabs{position:fixed; top:45%; right:0; transform:translateY(-50%); z-index:1020; display:flex; flex-direction:column; gap:8px;}
+.side-tab{
+  writing-mode:vertical-rl; background:var(--primary); color:#fff; font-weight:700; font-size:.78rem;
+  padding:.9rem .5rem; border-radius:8px 0 0 8px; letter-spacing:.5px; cursor:pointer;
+}
+.side-tab:hover{background:var(--secondary);}
+@media (max-width:768px){ .side-tabs{display:none;} }
+
+/* Filters */
+.filter-card{background:#fff; border:1px solid var(--border); border-radius:12px; padding:1.2rem;}
+.filter-section{border-bottom:1px solid var(--border); padding:1rem 0;}
+.filter-section:first-of-type{padding-top:0;}
+.filter-section:last-of-type{border-bottom:none;}
+.filter-toggle{display:flex; justify-content:between; justify-content:space-between; align-items:center; cursor:pointer; font-weight:700; font-size:.92rem; color:var(--text-2);}
+.filter-toggle .bi{color:var(--secondary); font-size:.85rem;}
+.swatch-row{display:flex; align-items:center; gap:.7rem; padding:.4rem 0; font-size:.85rem; color:var(--text-2); cursor:pointer;}
+.swatch-circle{width:26px;height:26px;border-radius:50%; border:2px solid var(--border); flex:0 0 auto;}
+.view-more-link{font-size:.82rem; font-weight:700; color:var(--secondary);}
+
+/* Product grid */
+.toolbar{display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:1rem;}
+.view-toggle{display:flex; border:1px solid var(--border); border-radius:8px; overflow:hidden;}
+.view-toggle button{width:38px;height:38px; border:none; background:#fff; color:var(--text-secondary); display:flex;align-items:center;justify-content:center;}
+.view-toggle button.active{background:var(--primary); color:#fff;}
+.sort-select{border:1px solid var(--border); border-radius:8px; padding:.5rem .8rem; font-size:.85rem; color:var(--text-2);}
+
+.plp-card{background:#fff; border:1px solid var(--border); border-radius:12px; overflow:hidden; position:relative; height:100%;}
+.plp-card .img-wrap{height:170px; position:relative;}
+.plp-card .fav-btn{position:absolute; top:.7rem; right:.7rem; width:34px;height:34px;border-radius:50%; background:#fff; display:flex;align-items:center;justify-content:center; box-shadow:0 2px 8px rgba(0,0,0,.12); color:var(--secondary); font-size:.95rem; border:none;}
+.plp-card .body{padding:1rem;}
+.plp-card .code{font-weight:700; color:var(--primary); font-size:1.02rem;}
+.plp-card .title{color:var(--text-secondary); font-size:.85rem; margin-bottom:0;}
+.plp-card .actions{display:flex; justify-content:flex-end; gap:.5rem; padding:0 1rem 1rem;}
+.plp-card .actions button{width:32px;height:32px;border-radius:50%; border:1px solid var(--border); background:#fff; color:var(--secondary); display:flex;align-items:center;justify-content:center; font-size:.85rem;}
+
+/* Pagination */
+.page-btn{min-width:40px; height:40px; border-radius:8px; border:1px solid var(--border); background:#fff; color:var(--text-2); font-weight:600; display:flex;align-items:center;justify-content:center; padding:0 .8rem;}
+.page-btn.active{background:var(--primary); color:#fff; border-color:var(--primary);}
+.page-btn:hover:not(.active){background:var(--light-section);}
+
+/* Footer */
+footer{background:var(--primary); color:#cfe0f7;}
+footer h6{color:#fff; font-weight:700; margin-bottom:1rem; font-size:.9rem; letter-spacing:.5px;}
+footer a{color:#cfe0f7; font-size:.85rem; display:block; margin-bottom:.55rem;}
+footer a:hover{color:var(--accent);}
+.social-circle{width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.1); display:flex;align-items:center;justify-content:center; color:#fff;}
+.footer-bottom{background:#00274F; font-size:.8rem; padding:14px 0; color:#a9c4e6;}
+.newsletter-input{border-radius:8px 0 0 8px; border:1px solid rgba(255,255,255,.25); background:rgba(255,255,255,.08); color:#fff; padding:.6rem .9rem; font-size:.85rem;}
+.newsletter-input::placeholder{color:#a9c4e6;}
+.newsletter-btn{border-radius:0 8px 8px 0; background:var(--accent); border:1px solid var(--accent); color:#00274F; padding:.6rem 1rem;}
+</style>
+</head>
+<body>
+
+<!-- FLOATING SIDE TABS -->
+<div class="side-tabs">
+  <div class="side-tab">Get a Quote</div>
+  <div class="side-tab">Enquire Now</div>
+</div>
+
+<!-- MAIN NAV -->
+<nav class="main-nav py-2">
+  <div class="container">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+      <a href="#" class="d-flex align-items-center gap-2 text-decoration-none">
+        <!-- <i class="bi bi-triangle-fill text-primary-custom fs-4"></i>
+        <span class="logo-text">TAITON</span> -->
+        <img src="./taiton/taiton/taiton blue.png" class="img-fluid" style="width: 200px; height: auto;" alt="">
+      </a>
+      <div class="flex-grow-1 mx-4 d-none d-lg-block" style="max-width:420px;">
+        <div class="input-group">
+          <input type="text" class="form-control border-custom" placeholder="Search">
+          <button class="btn btn-primary-custom"><i class="bi bi-search"></i></button>
+        </div>
+      </div>
+      <div class="d-flex align-items-center">
+        <span class="icon-btn"><i class="bi bi-heart"></i><span class="dot"></span></span>
+        <span class="icon-btn"><i class="bi bi-cart3"></i><span class="dot"></span></span>
+        <span class="icon-btn"><i class="bi bi-bell"></i><span class="dot"></span></span>
+        <div class="user-chip">
+          <div class="user-avatar">BR</div>
+          <div class="d-none d-sm-block">
+            <div class="name">B. Rajesh</div>
+            <div class="role">Architect</div>
+          </div>
+          <i class="bi bi-chevron-down text-muted-custom d-none d-sm-inline" style="font-size:.7rem;"></i>
+        </div>
+        <button class="btn d-lg-none ms-2" data-bs-toggle="collapse" data-bs-target="#navMenu"><i class="bi bi-list fs-3"></i></button>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<div class="nav-bar collapse d-lg-block" id="navMenu">
+  <div class="container">
+    <div class="d-flex flex-wrap align-items-center justify-content-between">
+      <div class="nav-menu d-flex flex-wrap align-items-center">
+        <span class="d-none d-lg-inline-flex align-items-center px-2"><i class="bi bi-list text-white"></i></span>
+        <a href="#">Company <i class="bi bi-chevron-down ms-1" style="font-size:.65rem;"></i></a>
+        <a href="#">Products <i class="bi bi-chevron-down ms-1" style="font-size:.65rem;"></i></a>
+        <a href="#">Catalogues <i class="bi bi-chevron-down ms-1" style="font-size:.65rem;"></i></a>
+        <a href="#">Explore Spaces</a>
+        <a href="#">New Arrivals</a>
+        <a href="#">Videos</a>
+      </div>
+      <div class="d-none d-lg-flex gap-2 py-2">
+        <button class="btn btn-sm" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,.5);">Contact Us</button>
+        <button class="btn btn-sm" style="background:var(--accent); color:#00274F; font-weight:700;">Get a Quote</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- BREADCRUMB -->
+<div class="container breadcrumb-bar">
+  <i class="bi bi-house-door-fill me-1"></i>
+  <a href="#">Products</a> <i class="bi bi-chevron-right mx-1" style="font-size:.65rem;"></i>
+  <a href="#">Glass Door Fittings</a> <i class="bi bi-chevron-right mx-1" style="font-size:.65rem;"></i>
+  <a href="#">Patch Fittings</a> <i class="bi bi-chevron-right mx-1" style="font-size:.65rem;"></i>
+</div>
+
+<!-- CATEGORY HERO -->
+<div class="container mb-4">
+  <div class="category-hero">
+    <div class="row g-0 align-items-stretch">
+      <div class="col-lg-6 p-4 p-lg-5 d-flex flex-column justify-content-center">
+        <h1 class="fw-bold text-primary-custom display-5">Door Handles</h1>
+        <p class="text-muted-custom mb-4">Explore our premium range of door handles crafted with precision, durability, and elegant designs.</p>
+        <div class="d-flex flex-wrap gap-3">
+          <button class="btn btn-primary-custom">View Catalogue <i class="bi bi-download ms-1"></i></button>
+          <button class="btn btn-outline-custom">Contact Us <i class="bi bi-arrow-right ms-1"></i></button>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="placeholder-img img-side" style="border-radius:0;">
+          <i class="bi bi-image" style="font-size:2rem;"></i> Door Handle Lifestyle Shot
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- LISTING -->
+<div class="container pb-5">
+  <div class="row g-4">
+    <!-- Filters -->
+    <div class="col-lg-3">
+      <div class="filter-card">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h5 class="fw-bold mb-0">Filters</h5>
+          <i class="bi bi-funnel text-secondary-custom"></i>
+        </div>
+
+        <div class="filter-section">
+          <div class="filter-toggle" data-bs-toggle="collapse" data-bs-target="#fCategory">Category <i class="bi bi-plus-lg"></i></div>
+          <div class="collapse mt-2" id="fCategory">
+            <div class="form-check small mb-1"><input class="form-check-input" type="checkbox" id="c1"><label class="form-check-label" for="c1">Lever Handles</label></div>
+            <div class="form-check small mb-1"><input class="form-check-input" type="checkbox" id="c2"><label class="form-check-label" for="c2">Pull Handles</label></div>
+            <div class="form-check small mb-1"><input class="form-check-input" type="checkbox" id="c3"><label class="form-check-label" for="c3">Designer Handles</label></div>
+          </div>
+        </div>
+
+        <div class="filter-section">
+          <div class="filter-toggle" data-bs-toggle="collapse" data-bs-target="#fFinish" aria-expanded="true">Finish / Color <i class="bi bi-chevron-up"></i></div>
+          <div class="collapse show mt-2" id="fFinish">
+            <div class="swatch-row"><span class="swatch-circle" style="background:linear-gradient(135deg,#cfd6dc,#9aa4ad);"></span> SS Mirror</div>
+            <div class="swatch-row"><span class="swatch-circle" style="background:#c9ced3;"></span> SS Satin</div>
+            <div class="swatch-row"><span class="swatch-circle" style="background:#1c1c1c;"></span> Matt Black</div>
+            <div class="swatch-row"><span class="swatch-circle" style="background:#c9a227;"></span> Gold</div>
+            <div class="swatch-row"><span class="swatch-circle" style="background:#d9a79c;"></span> Rose Gold</div>
+            <div class="swatch-row"><span class="swatch-circle" style="background:#5a5a5a;"></span> Gun Metal</div>
+            <div class="swatch-row"><span class="swatch-circle" style="background:#8a7526;"></span> Antique Brass</div>
+            <div class="swatch-row"><span class="swatch-circle border" style="background:#fff;"></span> White</div>
+            <a href="#" class="view-more-link">+ View More</a>
+          </div>
+        </div>
+
+        <div class="filter-section">
+          <div class="filter-toggle" data-bs-toggle="collapse" data-bs-target="#fMaterial">Material <i class="bi bi-plus-lg"></i></div>
+          <div class="collapse mt-2" id="fMaterial">
+            <div class="form-check small mb-1"><input class="form-check-input" type="checkbox" id="m1"><label class="form-check-label" for="m1">Stainless Steel</label></div>
+            <div class="form-check small mb-1"><input class="form-check-input" type="checkbox" id="m2"><label class="form-check-label" for="m2">Brass</label></div>
+            <div class="form-check small mb-1"><input class="form-check-input" type="checkbox" id="m3"><label class="form-check-label" for="m3">Zinc Alloy</label></div>
+          </div>
+        </div>
+
+        <div class="filter-section">
+          <div class="filter-toggle" data-bs-toggle="collapse" data-bs-target="#fApplication">Application <i class="bi bi-plus-lg"></i></div>
+          <div class="collapse mt-2" id="fApplication">
+            <div class="form-check small mb-1"><input class="form-check-input" type="checkbox" id="a1"><label class="form-check-label" for="a1">Residential</label></div>
+            <div class="form-check small mb-1"><input class="form-check-input" type="checkbox" id="a2"><label class="form-check-label" for="a2">Commercial</label></div>
+          </div>
+        </div>
+
+        <div class="filter-section">
+          <div class="filter-toggle" data-bs-toggle="collapse" data-bs-target="#fBrand">Brand <i class="bi bi-plus-lg"></i></div>
+          <div class="collapse mt-2" id="fBrand">
+            <div class="form-check small mb-1"><input class="form-check-input" type="checkbox" id="b1"><label class="form-check-label" for="b1">TAITON</label></div>
+          </div>
+        </div>
+
+        <div class="filter-section">
+          <div class="filter-toggle" data-bs-toggle="collapse" data-bs-target="#fSeries">Series <i class="bi bi-plus-lg"></i></div>
+          <div class="collapse mt-2" id="fSeries">
+            <div class="form-check small mb-1"><input class="form-check-input" type="checkbox" id="s1"><label class="form-check-label" for="s1">DH Series</label></div>
+          </div>
+        </div>
+
+        <div class="filter-section">
+          <div class="filter-toggle" data-bs-toggle="collapse" data-bs-target="#fAvail">Availability <i class="bi bi-plus-lg"></i></div>
+          <div class="collapse mt-2" id="fAvail">
+            <div class="form-check small mb-1"><input class="form-check-input" type="checkbox" id="v1"><label class="form-check-label" for="v1">In Stock</label></div>
+          </div>
+        </div>
+
+        <button class="btn btn-outline-custom w-100 mt-2">Clear All</button>
+      </div>
+    </div>
+
+    <!-- Product Grid -->
+    <div class="col-lg-9">
+      <div class="toolbar mb-3">
+        <div class="text-muted-custom" style="font-size:.9rem;">Showing 1–10 of 26 Products</div>
+        <div class="d-flex align-items-center gap-3">
+          <div class="d-flex align-items-center gap-2">
+            <span class="text-muted-custom" style="font-size:.85rem;">Sort By:</span>
+            <select class="sort-select">
+              <option>Newest First</option>
+              <option>Price: Low to High</option>
+              <option>Price: High to Low</option>
+              <option>Popularity</option>
+            </select>
+          </div>
+          <div class="view-toggle">
+            <button class="active"><i class="bi bi-grid-3x3-gap-fill"></i></button>
+            <button><i class="bi bi-list-ul"></i></button>
+          </div>
+        </div>
+      </div>
+
+      <div class="row g-4" id="productGrid">
+        <!-- Card template repeated -->
+        <div class="col-6 col-md-4 col-xl-3">
+          <div class="plp-card">
+            <div class="img-wrap"><div class="placeholder-img" style="border-radius:0;"><i class="bi bi-image"></i></div><button class="fav-btn"><i class="bi bi-heart"></i></button></div>
+            <div class="body"><div class="code">DH-101</div><p class="title">Premium SS Door Handle</p></div>
+            <div class="actions"><button title="Compare"><i class="bi bi-arrow-left-right"></i></button><button title="Wishlist"><i class="bi bi-heart"></i></button></div>
+          </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-3">
+          <div class="plp-card">
+            <div class="img-wrap"><div class="placeholder-img" style="border-radius:0;"><i class="bi bi-image"></i></div><button class="fav-btn"><i class="bi bi-heart"></i></button></div>
+            <div class="body"><div class="code">DH-102</div><p class="title">Elegant Lever Handle</p></div>
+            <div class="actions"><button title="Compare"><i class="bi bi-arrow-left-right"></i></button><button title="Wishlist"><i class="bi bi-heart"></i></button></div>
+          </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-3">
+          <div class="plp-card">
+            <div class="img-wrap"><div class="placeholder-img" style="border-radius:0;"><i class="bi bi-image"></i></div><button class="fav-btn"><i class="bi bi-heart"></i></button></div>
+            <div class="body"><div class="code">DH-103</div><p class="title">Modern Door Handle</p></div>
+            <div class="actions"><button title="Compare"><i class="bi bi-arrow-left-right"></i></button><button title="Wishlist"><i class="bi bi-heart"></i></button></div>
+          </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-3">
+          <div class="plp-card">
+            <div class="img-wrap"><div class="placeholder-img" style="border-radius:0;"><i class="bi bi-image"></i></div><button class="fav-btn"><i class="bi bi-heart"></i></button></div>
+            <div class="body"><div class="code">DH-104</div><p class="title">Designer Lever Handle</p></div>
+            <div class="actions"><button title="Compare"><i class="bi bi-arrow-left-right"></i></button><button title="Wishlist"><i class="bi bi-heart"></i></button></div>
+          </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-3">
+          <div class="plp-card">
+            <div class="img-wrap"><div class="placeholder-img" style="border-radius:0;"><i class="bi bi-image"></i></div><button class="fav-btn"><i class="bi bi-heart"></i></button></div>
+            <div class="body"><div class="code">DH-105</div><p class="title">SS Matte Door Handle</p></div>
+            <div class="actions"><button title="Compare"><i class="bi bi-arrow-left-right"></i></button><button title="Wishlist"><i class="bi bi-heart"></i></button></div>
+          </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-3">
+          <div class="plp-card">
+            <div class="img-wrap"><div class="placeholder-img" style="border-radius:0;"><i class="bi bi-image"></i></div><button class="fav-btn"><i class="bi bi-heart"></i></button></div>
+            <div class="body"><div class="code">DH-106</div><p class="title">Classic Door Handle</p></div>
+            <div class="actions"><button title="Compare"><i class="bi bi-arrow-left-right"></i></button><button title="Wishlist"><i class="bi bi-heart"></i></button></div>
+          </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-3">
+          <div class="plp-card">
+            <div class="img-wrap"><div class="placeholder-img" style="border-radius:0;"><i class="bi bi-image"></i></div><button class="fav-btn"><i class="bi bi-heart"></i></button></div>
+            <div class="body"><div class="code">DH-107</div><p class="title">Premium Designer Handle</p></div>
+            <div class="actions"><button title="Compare"><i class="bi bi-arrow-left-right"></i></button><button title="Wishlist"><i class="bi bi-heart"></i></button></div>
+          </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-3">
+          <div class="plp-card">
+            <div class="img-wrap"><div class="placeholder-img" style="border-radius:0;"><i class="bi bi-image"></i></div><button class="fav-btn"><i class="bi bi-heart"></i></button></div>
+            <div class="body"><div class="code">DH-108</div><p class="title">Stainless Steel Handle</p></div>
+            <div class="actions"><button title="Compare"><i class="bi bi-arrow-left-right"></i></button><button title="Wishlist"><i class="bi bi-heart"></i></button></div>
+          </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-3">
+          <div class="plp-card">
+            <div class="img-wrap"><div class="placeholder-img" style="border-radius:0;"><i class="bi bi-image"></i></div><button class="fav-btn"><i class="bi bi-heart"></i></button></div>
+            <div class="body"><div class="code">DH-109</div><p class="title">Luxury Door Handle</p></div>
+            <div class="actions"><button title="Compare"><i class="bi bi-arrow-left-right"></i></button><button title="Wishlist"><i class="bi bi-heart"></i></button></div>
+          </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-3">
+          <div class="plp-card">
+            <div class="img-wrap"><div class="placeholder-img" style="border-radius:0;"><i class="bi bi-image"></i></div><button class="fav-btn"><i class="bi bi-heart"></i></button></div>
+            <div class="body"><div class="code">DH-110</div><p class="title">Contemporary Handle</p></div>
+            <div class="actions"><button title="Compare"><i class="bi bi-arrow-left-right"></i></button><button title="Wishlist"><i class="bi bi-heart"></i></button></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pagination -->
+      <div class="d-flex justify-content-center flex-wrap gap-2 mt-5">
+        <button class="page-btn"><i class="bi bi-chevron-left me-1"></i>Previous</button>
+        <button class="page-btn active">1</button>
+        <button class="page-btn">2</button>
+        <button class="page-btn">3</button>
+        <button class="page-btn">Next<i class="bi bi-chevron-right ms-1"></i></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer class="pt-5">
+  <div class="container">
+    <div class="row g-4 pb-4">
+      <div class="col-lg-3 col-md-6">
+        <div class="d-flex align-items-center gap-2 mb-3">
+          <img src="./taiton/taiton/taiton white.png" class="img-fluid" style="width: 200px; height: auto;" alt="">
+        </div>
+        <p style="font-size:.83rem;">TAITON Building, Survey No. 123, Near Orchid Road, Rajkot – 360002, Gujarat, India.</p>
+        <div class="d-flex gap-2 mt-3">
+          <span class="social-circle"><i class="bi bi-facebook"></i></span>
+          <span class="social-circle"><i class="bi bi-instagram"></i></span>
+          <span class="social-circle"><i class="bi bi-linkedin"></i></span>
+          <span class="social-circle"><i class="bi bi-youtube"></i></span>
+          <span class="social-circle"><i class="bi bi-pinterest"></i></span>
+        </div>
+      </div>
+      <div class="col-lg-2 col-md-6 col-6">
+        <h6>COMPANY</h6>
+        <a href="#">About Us</a><a href="#">Projects</a><a href="#">Careers</a><a href="#">Achievements</a><a href="#">Events</a><a href="#">Blogs</a>
+      </div>
+      <div class="col-lg-2 col-md-6 col-6">
+        <h6>PRODUCTS</h6>
+        <a href="#">Sliding Door Systems</a><a href="#">Wardrobe Solutions</a><a href="#">Shower Cubicles</a><a href="#">Glass Hardware</a><a href="#">Rolling Systems</a><a href="#">Patch Fittings</a>
+      </div>
+      <div class="col-lg-2 col-md-6 col-6">
+        <h6>SUPPORT</h6>
+        <a href="#">Catalogues</a><a href="#">Downloads</a><a href="#">Videos</a><a href="#">Contact Us</a><a href="#">Privacy Policy</a><a href="#">Terms &amp; Conditions</a>
+      </div>
+      <div class="col-lg-3 col-md-6">
+        <h6>NEWSLETTER</h6>
+        <p style="font-size:.83rem;">Subscribe to get updates on our latest products and offers.</p>
+        <div class="d-flex">
+          <input type="email" class="newsletter-input flex-grow-1" placeholder="Enter your email">
+          <button class="newsletter-btn"><i class="bi bi-send-fill"></i></button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <div class="container text-center">© 2024 TAITON. All Rights Reserved.</div>
+  </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  document.querySelectorAll('.view-toggle button').forEach(function(b){
+    b.addEventListener('click', function(){
+      document.querySelectorAll('.view-toggle button').forEach(function(x){x.classList.remove('active');});
+      b.classList.add('active');
+    });
+  });
+  document.querySelectorAll('.page-btn').forEach(function(b){
+    if(b.textContent.trim().match(/^\d+$/)){
+      b.addEventListener('click', function(){
+        document.querySelectorAll('.page-btn').forEach(function(x){
+          if(x.textContent.trim().match(/^\d+$/)) x.classList.remove('active');
+        });
+        b.classList.add('active');
+      });
+    }
+  });
+  document.querySelectorAll('.fav-btn, .plp-card .actions button[title="Wishlist"]').forEach(function(b){
+    b.addEventListener('click', function(){
+      var icon = b.querySelector('i');
+      icon.classList.toggle('bi-heart');
+      icon.classList.toggle('bi-heart-fill');
+      icon.style.color = icon.classList.contains('bi-heart-fill') ? '#dc3545' : '';
+    });
+  });
+</script>
+</body>
+</html>
