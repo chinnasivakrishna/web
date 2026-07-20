@@ -1,90 +1,92 @@
-const express = require('express');
-const cors = require('cors');
-const dotenv = require('dotenv');
-const mongoose = require('mongoose');
 const path = require('path');
 const http = require('http');
+const express = require('express');
+const dotenv = require('dotenv');
+const cors = require('cors');
+let morgan;
+try {
+  morgan = require('morgan');
+} catch (e) {
+  morgan = null;
+}
+const mongoose = require('mongoose');
 const { Server } = require('socket.io');
-const connectDB = require('./config/db');
-const seedData = require('./utils/seedAdmin');
-const errorHandler = require('./middleware/errorMiddleware');
 
 // Load environment variables
-dotenv.config();
+dotenv.config({ path: path.join(__dirname, '.env') });
 
+// Import Database Connection and Seeder
+const connectDB = require('./config/db');
+const seedData = require('./utils/seedAdmin');
+
+// Express App Initialization
 const app = express();
 const server = http.createServer(app);
 
-// Configure Socket.io
+// Initialize Socket.io with CORS
 const io = new Server(server, {
   cors: {
     origin: '*',
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
   },
 });
 
-// Middlewares
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Middleware Configuration
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Configure CORS
+// Enable CORS for frontend clients
 app.use(
   cors({
     origin: '*',
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
   })
 );
 
-// DB Connection Status Middleware - prevent operation buffering timeouts if DB is offline
-app.use((req, res, next) => {
-  // Allow health checks even if DB is offline
-  if (req.path === '/api/health' || req.path === '/') return next();
+// Dev Logging Middleware
+if (process.env.NODE_ENV === 'development' && morgan) {
+  app.use(morgan('dev'));
+}
 
-  if (mongoose.connection.readyState !== 1) {
-    return res.status(503).json({
-      success: false,
-      message: 'Database connection is offline or unavailable. Please check your MongoDB connection or Atlas Network Access IP Whitelist.',
-    });
-  }
-  next();
-});
-
-// API Routes
-app.use('/api/v1/auth', require('./routes/authRoutes'));
-app.use('/api/v1/admin', require('./routes/adminRoutes'));
-app.use('/api/v1/courses', require('./routes/courseRoutes'));
-app.use('/api/v1/classrooms', require('./routes/classroomRoutes'));
-app.use('/api/v1/meetings', require('./routes/meetingRoutes'));
-
-// Healthcheck Endpoint
+// Health Check Endpoint
 app.get('/api/health', (req, res) => {
   res.status(200).json({
-    status: 'OK',
-    app: 'StuVaradhi Backend API',
-    tagline: 'Bridging Students to Success',
+    success: true,
+    message: 'StuVaradhi API Server & WebSockets are Healthy 🚀',
     timestamp: new Date().toISOString(),
   });
 });
 
-// Root API Endpoint
-app.get('/', (req, res) => {
-  res.send('StuVaradhi API Server is running smoothly...');
-});
+// Import Route Handlers
+const authRoutes = require('./routes/authRoutes');
+const adminRoutes = require('./routes/adminRoutes');
+const classroomRoutes = require('./routes/classroomRoutes');
+const courseRoutes = require('./routes/courseRoutes');
+const meetingRoutes = require('./routes/meetingRoutes');
 
-// Error Handler Middleware
-app.use(errorHandler);
+// API Route Mounting (Supports both /api/v1 and /api prefixes)
+app.use(['/api/v1/auth', '/api/auth'], authRoutes);
+app.use(['/api/v1/admin', '/api/admin'], adminRoutes);
+app.use(['/api/v1/classrooms', '/api/classrooms'], classroomRoutes);
+app.use(['/api/v1/courses', '/api/courses'], courseRoutes);
+app.use(['/api/v1/meetings', '/api/meetings'], meetingRoutes);
+
+// Global 404 Route Handler
+app.use('*', (req, res) => {
+  res.status(404).json({
+    success: false,
+    message: `API Endpoint ${req.originalUrl} Not Found`,
+  });
+});
 
 // Socket.io Real-Time WebRTC & Room Signaling System
 const roomParticipants = new Map(); // meetId -> Map(socketId -> userData)
+const activeScreenShares = new Map(); // meetId -> { socketId, userId, userName, isSharing }
 
 io.on('connection', (socket) => {
   console.log(`🔌 New client connected to Socket: ${socket.id}`);
 
-  // Participant joins room
+  // Participant joins room (ONLY emitted when user is admitted)
   socket.on('join-room', ({ meetId, user }) => {
     if (!meetId || !user) return;
 
@@ -108,6 +110,11 @@ io.on('connection', (socket) => {
     // Send existing peers to newly joined user
     socket.emit('existing-participants', existingUsers);
 
+    // If active screen share session exists in this room, notify newly joined user immediately!
+    if (activeScreenShares.has(meetId)) {
+      socket.emit('screen-share-updated', activeScreenShares.get(meetId));
+    }
+
     // Broadcast new user connection to existing peers in room
     socket.to(meetId).emit('user-joined', {
       socketId: socket.id,
@@ -126,6 +133,10 @@ io.on('connection', (socket) => {
           user: uData,
         }));
       socket.emit('existing-participants', existingUsers);
+
+      if (activeScreenShares.has(meetId)) {
+        socket.emit('screen-share-updated', activeScreenShares.get(meetId));
+      }
     }
   });
 
@@ -172,12 +183,20 @@ io.on('connection', (socket) => {
 
   // Screen Share Status Change
   socket.on('screen-share-changed', ({ meetId, isSharing, userName }) => {
-    io.to(meetId).emit('screen-share-updated', {
+    const shareData = {
       socketId: socket.id,
       userId: socket.userData?._id || socket.userData?.id,
       userName: userName || socket.userData?.name,
       isSharing,
-    });
+    };
+
+    if (isSharing) {
+      activeScreenShares.set(meetId, shareData);
+    } else {
+      activeScreenShares.delete(meetId);
+    }
+
+    io.to(meetId).emit('screen-share-updated', shareData);
   });
 
   // Real-Time Chat Message
@@ -222,6 +241,13 @@ io.on('connection', (socket) => {
             roomParticipants.delete(meetId);
           }
         }
+        if (activeScreenShares.has(meetId)) {
+          const shareInfo = activeScreenShares.get(meetId);
+          if (shareInfo.socketId === socket.id) {
+            activeScreenShares.delete(meetId);
+            socket.to(meetId).emit('screen-share-updated', { isSharing: false });
+          }
+        }
         socket.to(meetId).emit('user-left', {
           socketId: socket.id,
           userId: socket.userData?._id || socket.userData?.id,
@@ -238,10 +264,8 @@ io.on('connection', (socket) => {
 const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
-  // Connect DB
   await connectDB();
 
-  // Run initial seed data if DB connected
   if (mongoose.connection.readyState === 1) {
     await seedData();
   }
@@ -268,10 +292,6 @@ const startServer = async () => {
 
 startServer();
 
-// Handle unhandled promise rejections
 process.on('unhandledRejection', (err, promise) => {
   console.error(`Unhandled Rejection Error: ${err.message}`);
 });
-
-
-
