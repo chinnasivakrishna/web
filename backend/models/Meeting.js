@@ -70,6 +70,10 @@ const meetingSchema = new mongoose.Schema(
       userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
       userName: { type: String, default: '' },
     },
+    screenFrame: {
+      type: String,
+      default: '',
+    },
     messages: [chatMessageSchema],
   },
   {

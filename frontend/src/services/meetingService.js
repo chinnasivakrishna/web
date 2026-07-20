@@ -41,6 +41,11 @@ export const meetingService = {
     return response.data;
   },
 
+  broadcastScreenFrame: async (meetingId, frame) => {
+    const response = await API.post(`/meetings/${meetingId}/screen-frame`, { frame });
+    return response.data;
+  },
+
   toggleRaiseHand: async (meetingId) => {
     const response = await API.post(`/meetings/${meetingId}/raise-hand`);
     return response.data;

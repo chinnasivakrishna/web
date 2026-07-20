@@ -12,6 +12,7 @@ const {
   endMeeting,
   updateMediaState,
   removeParticipant,
+  broadcastScreenFrame,
 } = require('../controllers/meetingController');
 const { protect, authorize } = require('../middleware/authMiddleware');
 
@@ -24,6 +25,7 @@ router.post('/:meetingId/respond-join', authorize('faculty', 'admin'), respondJo
 router.post('/:meetingId/respond-join-all', authorize('faculty', 'admin'), admitAllJoinRequests);
 router.post('/:meetingId/leave', leaveMeeting);
 router.post('/:meetingId/media-state', updateMediaState);
+router.post('/:meetingId/screen-frame', broadcastScreenFrame);
 router.post('/:meetingId/remove-participant', authorize('faculty', 'admin'), removeParticipant);
 router.post('/:meetingId/raise-hand', toggleRaiseHand);
 router.post('/:meetingId/messages', sendChatMessage);

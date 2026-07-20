@@ -581,3 +581,32 @@ exports.removeParticipant = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc    Broadcast Presenter Screen Frame Preview (Live Canvas Base64)
+// @route   POST /api/v1/meetings/:meetingId/screen-frame
+// @access  Private
+exports.broadcastScreenFrame = async (req, res, next) => {
+  try {
+    const { frame } = req.body;
+    const meeting = await Meeting.findOne({ meetingId: req.params.meetingId });
+    if (!meeting) {
+      return res.status(404).json({
+        success: false,
+        message: 'Meeting not found',
+      });
+    }
+
+    meeting.screenFrame = frame || '';
+    if (!frame && meeting.activeScreenSharer) {
+      meeting.activeScreenSharer = { userId: null, userName: '' };
+    }
+    await meeting.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Screen frame broadcast updated',
+    });
+  } catch (error) {
+    next(error);
+  }
+};

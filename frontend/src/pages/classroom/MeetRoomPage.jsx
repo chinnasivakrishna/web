@@ -1,7 +1,8 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { meetingService } from '../../services/meetingService';
 import { useAuth } from '../../context/AuthContext';
+import { initSocket, getSocket } from '../../services/socket';
 import {
   Mic,
   MicOff,
@@ -24,14 +25,25 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-// Helper WebRTC Media Stream Video Player Component
+// WebRTC STUN Server configuration for peer connection NAT traversal
+const ICE_SERVERS = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+  ],
+};
+
+// WebRTC Media Stream Video Player Component for Local & Remote Participants
 const VideoStream = ({ stream, isMuted = false, className = '' }) => {
   const videoRef = useRef(null);
 
   useEffect(() => {
     if (videoRef.current && stream) {
       videoRef.current.srcObject = stream;
-      videoRef.current.play().catch(() => {});
+      videoRef.current
+        .play()
+        .catch((err) => console.log('Video autoplay handled:', err.message));
     }
   }, [stream]);
 
@@ -40,6 +52,7 @@ const VideoStream = ({ stream, isMuted = false, className = '' }) => {
       ref={videoRef}
       autoPlay
       playsInline
+      webkit-playsinline="true"
       muted={isMuted}
       className={className}
     />
@@ -62,13 +75,26 @@ const MeetRoomPage = () => {
   const [isSharingScreen, setIsSharingScreen] = useState(false);
   const [handRaised, setHandRaised] = useState(false);
 
-  // Media Streams
-  const [mediaStream, setMediaStream] = useState(null);
+  // Local Media Streams
+  const [localStream, setLocalStream] = useState(null);
   const [screenStream, setScreenStream] = useState(null);
+  const localStreamRef = useRef(null);
+
+  // WebRTC Peer Connections map & Remote Streams state
+  // key: socketId, value: { peerConnection, stream, user, micOn, camOn, isScreenSharing }
+  const peersRef = useRef(new Map());
+  const [remotePeers, setRemotePeers] = useState([]); // Array of { socketId, stream, user, micOn, camOn, isScreenSharing }
+
+  // Screen Sharing State across peers
+  const [activeScreenSharer, setActiveScreenSharer] = useState(null); // { socketId, userId, userName }
+  const [remoteScreenStream, setRemoteScreenStream] = useState(null);
 
   // Side Drawer UI
   const [activeDrawer, setActiveDrawer] = useState(null); // 'participants' or 'chat'
   const [chatText, setChatText] = useState('');
+  const [messages, setMessages] = useState([]);
+  const [pendingLobbyUsers, setPendingLobbyUsers] = useState([]);
+  const [raisedHandsList, setRaisedHandsList] = useState([]);
 
   const isHost =
     meeting?.host?._id === user?.id ||
@@ -76,60 +102,170 @@ const MeetRoomPage = () => {
     isFaculty ||
     isAdmin;
 
-  // Initialize Hardware Camera & Microphone
+  // Cleanup WebRTC & Hardware Media Streams
+  const cleanupStreams = useCallback(() => {
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((track) => track.stop());
+      setLocalStream(null);
+    }
+    if (screenStream) {
+      screenStream.getTracks().forEach((track) => track.stop());
+      setScreenStream(null);
+    }
+
+    // Close all Peer Connections
+    peersRef.current.forEach(({ pc }) => {
+      if (pc) pc.close();
+    });
+    peersRef.current.clear();
+    setRemotePeers([]);
+  }, [screenStream]);
+
+  // Create a WebRTC PeerConnection for a specific remote socket
+  const createPeerConnection = useCallback(
+    (targetSocketId, remoteUser, isInitiator = false) => {
+      if (peersRef.current.has(targetSocketId)) {
+        return peersRef.current.get(targetSocketId).pc;
+      }
+
+      const socket = getSocket();
+      const pc = new RTCPeerConnection(ICE_SERVERS);
+
+      // Add local media tracks to peer connection
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach((track) => {
+          pc.addTrack(track, localStreamRef.current);
+        });
+      }
+
+      // Handle ICE Candidates
+      pc.onicecandidate = (event) => {
+        if (event.candidate) {
+          socket.emit('webrtc-ice-candidate', {
+            toSocketId: targetSocketId,
+            candidate: event.candidate,
+          });
+        }
+      };
+
+      // Handle Remote Track addition (Audio & Video streams)
+      pc.ontrack = (event) => {
+        const remoteStream = event.streams[0];
+        if (!remoteStream) return;
+
+        peersRef.current.set(targetSocketId, {
+          pc,
+          stream: remoteStream,
+          user: remoteUser,
+          micOn: remoteUser?.micOn ?? true,
+          camOn: remoteUser?.camOn ?? true,
+          isScreenSharing: remoteUser?.isScreenSharing ?? false,
+        });
+
+        // Update React state for rendering remote video & audio tiles
+        updateRemotePeersState();
+      };
+
+      pc.onconnectionstatechange = () => {
+        if (
+          pc.connectionState === 'disconnected' ||
+          pc.connectionState === 'failed' ||
+          pc.connectionState === 'closed'
+        ) {
+          removePeer(targetSocketId);
+        }
+      };
+
+      peersRef.current.set(targetSocketId, {
+        pc,
+        stream: null,
+        user: remoteUser,
+        micOn: remoteUser?.micOn ?? true,
+        camOn: remoteUser?.camOn ?? true,
+        isScreenSharing: remoteUser?.isScreenSharing ?? false,
+      });
+
+      // If caller/initiator, create offer
+      if (isInitiator) {
+        pc.createOffer()
+          .then((offer) => pc.setLocalDescription(offer))
+          .then(() => {
+            socket.emit('webrtc-offer', {
+              toSocketId: targetSocketId,
+              offer: pc.localDescription,
+              callerUser: {
+                _id: user?._id || user?.id,
+                name: user?.name,
+                micOn,
+                camOn,
+              },
+            });
+          })
+          .catch((err) => console.error('Error creating SDP offer:', err));
+      }
+
+      return pc;
+    },
+    [micOn, camOn, user]
+  );
+
+  const removePeer = (socketId) => {
+    if (peersRef.current.has(socketId)) {
+      const { pc } = peersRef.current.get(socketId);
+      if (pc) pc.close();
+      peersRef.current.delete(socketId);
+      updateRemotePeersState();
+    }
+  };
+
+  const updateRemotePeersState = () => {
+    const list = Array.from(peersRef.current.entries()).map(([sId, data]) => ({
+      socketId: sId,
+      stream: data.stream,
+      user: data.user,
+      micOn: data.micOn,
+      camOn: data.camOn,
+      isScreenSharing: data.isScreenSharing,
+    }));
+    setRemotePeers(list);
+  };
+
+  // Initialize Microphone & Camera hardware
   const initSystemHardware = async () => {
     try {
       if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
+          video: { width: { ideal: 1280 }, height: { ideal: 720 } },
           audio: true,
         });
-        setMediaStream(stream);
+        setLocalStream(stream);
+        localStreamRef.current = stream;
+        return stream;
       }
     } catch (err) {
-      console.warn('System media devices fallback:', err.message);
+      console.warn('System media devices access issue:', err.message);
+      toast.error('Could not access camera/microphone. Check browser permissions.');
     }
+    return null;
   };
 
-  const cleanupStreams = () => {
-    if (mediaStream) {
-      mediaStream.getTracks().forEach((track) => track.stop());
-    }
-    if (screenStream) {
-      screenStream.getTracks().forEach((track) => track.stop());
-    }
-  };
-
-  // Poll meeting details & check if meeting was ended or student was kicked
-  const syncMeeting = async () => {
+  // Fetch initial meeting details once (No polling interval!)
+  const fetchMeetingDetailsOnce = async () => {
     try {
       const data = await meetingService.getMeetingDetails(meetId);
       if (data.success && data.meeting) {
-        const currentUserId = (user?._id || user?.id || '')?.toString();
-
-        // Eject if host ended meeting
         if (data.meeting.status === 'ended') {
-          toast.error('The host teacher has ended the meeting session.');
-          cleanupStreams();
-          navigate(`/classroom/${classId}`);
-          return;
-        }
-
-        // Eject if student was kicked by host
-        const isKicked = data.meeting?.kickedParticipants?.some((kp) => {
-          const kId = typeof kp === 'object' ? kp?._id?.toString() : kp?.toString();
-          return kId && kId === currentUserId;
-        });
-
-        if (isKicked && !isHost && !isAdmin) {
-          toast.error('You have been removed from the meeting by the teacher.');
-          cleanupStreams();
+          toast.error('The host teacher has ended this meeting.');
           navigate(`/classroom/${classId}`);
           return;
         }
 
         setMeeting(data.meeting);
+        setMessages(data.meeting.messages || []);
+        setPendingLobbyUsers(data.meeting.pendingRequests || []);
+        setRaisedHandsList(data.meeting.raisedHands || []);
 
+        const currentUserId = (user?._id || user?.id || '')?.toString();
         const hostIdStr = (data.meeting?.host?._id || data.meeting?.host || '')?.toString();
         const isHostOrAdmitted =
           isHost ||
@@ -142,107 +278,354 @@ const MeetRoomPage = () => {
           });
 
         if (isHostOrAdmitted) {
-          if (!isAdmitted) {
-            setIsAdmitted(true);
-            setIsLobbyWaiting(false);
-            initSystemHardware();
-          }
+          setIsAdmitted(true);
+          setIsLobbyWaiting(false);
+          await initSystemHardware();
         } else {
           setIsAdmitted(false);
         }
       }
     } catch (error) {
-      console.log('Error syncing meeting state:', error);
+      console.error('Error loading meeting details:', error);
+      toast.error('Could not load meeting session.');
     } finally {
       setLoading(false);
     }
   };
 
+  // Main Socket Connection & Signaling setup
   useEffect(() => {
-    syncMeeting();
-    const interval = setInterval(syncMeeting, 3000); // Polling every 3s
-    return () => {
-      clearInterval(interval);
-    };
-  }, []);
+    fetchMeetingDetailsOnce();
 
-  // Broadcast Mic / Cam / Screen Share state changes
-  useEffect(() => {
-    if (isAdmitted) {
-      meetingService.updateMediaState(meetId, {
-        micOn,
-        camOn,
-        isScreenSharing: isSharingScreen,
-      }).catch(() => {});
+    const socket = initSocket();
+
+    // Join room event once admitted
+    if (isAdmitted && user) {
+      socket.emit('join-room', {
+        meetId,
+        user: {
+          _id: user._id || user.id,
+          name: user.name,
+          profileImage: user.profileImage,
+          role: user.role,
+          micOn,
+          camOn,
+        },
+      });
     }
-  }, [micOn, camOn, isSharingScreen, isAdmitted, meetId]);
 
-  // Window unload listener to remove participant
+    // Socket Event Handlers
+    socket.on('existing-participants', (existingUsers) => {
+      // Connect to each existing participant by initiating SDP offer
+      existingUsers.forEach(({ socketId: peerSocketId, user: peerUser }) => {
+        if (peerSocketId !== socket.id) {
+          createPeerConnection(peerSocketId, peerUser, true);
+        }
+      });
+    });
+
+    socket.on('user-joined', ({ socketId: newSocketId, user: newUser }) => {
+      toast.success(`${newUser.name || 'Participant'} joined the call`);
+      // Wait for incoming offer or prepare connection
+      createPeerConnection(newSocketId, newUser, false);
+    });
+
+    socket.on('webrtc-offer', async ({ fromSocketId, offer, callerUser }) => {
+      try {
+        const pc = createPeerConnection(fromSocketId, callerUser, false);
+        await pc.setRemoteDescription(new RTCSessionDescription(offer));
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        socket.emit('webrtc-answer', {
+          toSocketId: fromSocketId,
+          answer: pc.localDescription,
+        });
+      } catch (err) {
+        console.error('Error handling WebRTC offer:', err);
+      }
+    });
+
+    socket.on('webrtc-answer', async ({ fromSocketId, answer }) => {
+      try {
+        if (peersRef.current.has(fromSocketId)) {
+          const { pc } = peersRef.current.get(fromSocketId);
+          if (pc && pc.signalingState !== 'stable') {
+            await pc.setRemoteDescription(new RTCSessionDescription(answer));
+          }
+        }
+      } catch (err) {
+        console.error('Error handling WebRTC answer:', err);
+      }
+    });
+
+    socket.on('webrtc-ice-candidate', async ({ fromSocketId, candidate }) => {
+      try {
+        if (peersRef.current.has(fromSocketId)) {
+          const { pc } = peersRef.current.get(fromSocketId);
+          if (pc && candidate) {
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+          }
+        }
+      } catch (err) {
+        console.error('Error adding ICE candidate:', err);
+      }
+    });
+
+    socket.on('participant-media-changed', ({ socketId: sId, micOn: pMic, camOn: pCam, isScreenSharing: pScreen }) => {
+      if (peersRef.current.has(sId)) {
+        const item = peersRef.current.get(sId);
+        item.micOn = pMic;
+        item.camOn = pCam;
+        item.isScreenSharing = pScreen;
+        updateRemotePeersState();
+      }
+    });
+
+    socket.on('screen-share-updated', ({ socketId: sId, userId: sUserId, userName: sName, isSharing }) => {
+      if (isSharing) {
+        setActiveScreenSharer({ socketId: sId, userId: sUserId, userName: sName });
+        toast(`${sName || 'A user'} started sharing screen`, { icon: '🖥️' });
+
+        // If another peer is sharing, retrieve their stream
+        if (peersRef.current.has(sId)) {
+          const peerItem = peersRef.current.get(sId);
+          if (peerItem.stream) {
+            setRemoteScreenStream(peerItem.stream);
+          }
+        }
+      } else {
+        setActiveScreenSharer(null);
+        setRemoteScreenStream(null);
+        toast('Screen sharing ended');
+      }
+    });
+
+    socket.on('chat-message-received', (msg) => {
+      setMessages((prev) => [...prev, msg]);
+    });
+
+    socket.on('raise-hand-updated', ({ userId: rUserId, isHandRaised: rStatus }) => {
+      setRaisedHandsList((prev) => {
+        const uIdStr = rUserId?.toString();
+        if (rStatus) {
+          if (!prev.some((h) => (h._id || h).toString() === uIdStr)) {
+            return [...prev, { _id: rUserId }];
+          }
+          return prev;
+        } else {
+          return prev.filter((h) => (h._id || h).toString() !== uIdStr);
+        }
+      });
+    });
+
+    socket.on('lobby-student-request', ({ user: reqUser }) => {
+      setPendingLobbyUsers((prev) => {
+        const rId = (reqUser._id || reqUser.id)?.toString();
+        if (!prev.some((u) => (u._id || u.id)?.toString() === rId)) {
+          return [...prev, reqUser];
+        }
+        return prev;
+      });
+      toast(`Student ${reqUser.name} requested to join the call`, { icon: '🙋‍♂️' });
+    });
+
+    socket.on('lobby-student-response', ({ studentId, action }) => {
+      const currentUserId = (user?._id || user?.id)?.toString();
+      if (studentId?.toString() === currentUserId) {
+        if (action === 'admit') {
+          setIsAdmitted(true);
+          setIsLobbyWaiting(false);
+          initSystemHardware();
+          toast.success('You have been admitted to the meeting!');
+        } else {
+          setIsLobbyWaiting(false);
+          toast.error('Your request to join was denied by host teacher.');
+        }
+      }
+
+      setPendingLobbyUsers((prev) =>
+        prev.filter((u) => (u._id || u.id)?.toString() !== studentId?.toString())
+      );
+    });
+
+    socket.on('lobby-admit-all-response', () => {
+      setIsAdmitted(true);
+      setIsLobbyWaiting(false);
+      initSystemHardware();
+      setPendingLobbyUsers([]);
+    });
+
+    socket.on('participant-kicked', ({ studentId }) => {
+      const currentUserId = (user?._id || user?.id)?.toString();
+      if (studentId?.toString() === currentUserId && !isHost) {
+        toast.error('You have been removed from the meeting by the host.');
+        cleanupStreams();
+        navigate(`/classroom/${classId}`);
+      }
+    });
+
+    socket.on('meeting-ended', () => {
+      toast.error('The host teacher has ended the meeting session.');
+      cleanupStreams();
+      navigate(`/classroom/${classId}`);
+    });
+
+    socket.on('user-left', ({ socketId: leftSocketId, userId: leftUserId }) => {
+      removePeer(leftSocketId);
+    });
+
+    return () => {
+      socket.off('existing-participants');
+      socket.off('user-joined');
+      socket.off('webrtc-offer');
+      socket.off('webrtc-answer');
+      socket.off('webrtc-ice-candidate');
+      socket.off('participant-media-changed');
+      socket.off('screen-share-updated');
+      socket.off('chat-message-received');
+      socket.off('raise-hand-updated');
+      socket.off('lobby-student-request');
+      socket.off('lobby-student-response');
+      socket.off('lobby-admit-all-response');
+      socket.off('participant-kicked');
+      socket.off('meeting-ended');
+      socket.off('user-left');
+    };
+  }, [isAdmitted, meetId, user, classId, navigate, createPeerConnection, isHost, cleanupStreams]);
+
+  // Window unload listener to leave room
   useEffect(() => {
     const handleUnload = () => {
-      meetingService.leaveMeeting(meetId);
+      cleanupStreams();
+      meetingService.leaveMeeting(meetId).catch(() => {});
     };
     window.addEventListener('beforeunload', handleUnload);
     return () => {
       window.removeEventListener('beforeunload', handleUnload);
-      meetingService.leaveMeeting(meetId);
-      cleanupStreams();
     };
-  }, [meetId]);
+  }, [meetId, cleanupStreams]);
 
   // Hardware Camera Toggle
   const toggleCamera = () => {
-    if (mediaStream) {
-      const videoTrack = mediaStream.getVideoTracks()[0];
+    if (localStreamRef.current) {
+      const videoTrack = localStreamRef.current.getVideoTracks()[0];
       if (videoTrack) {
         videoTrack.enabled = !camOn;
       }
     }
-    setCamOn(!camOn);
-    toast(camOn ? 'Camera Turned Off' : 'Camera Turned On', { icon: camOn ? '📷' : '📹' });
+    const newCamState = !camOn;
+    setCamOn(newCamState);
+
+    const socket = getSocket();
+    socket.emit('media-state-toggle', {
+      meetId,
+      micOn,
+      camOn: newCamState,
+      isScreenSharing,
+    });
+
+    meetingService.updateMediaState(meetId, { micOn, camOn: newCamState, isScreenSharing }).catch(() => {});
+    toast(newCamState ? 'Camera Turned On' : 'Camera Turned Off', { icon: newCamState ? '📹' : '📷' });
   };
 
   // Hardware Mic Toggle
   const toggleMicrophone = () => {
-    if (mediaStream) {
-      const audioTrack = mediaStream.getAudioTracks()[0];
+    if (localStreamRef.current) {
+      const audioTrack = localStreamRef.current.getAudioTracks()[0];
       if (audioTrack) {
         audioTrack.enabled = !micOn;
       }
     }
-    setMicOn(!micOn);
-    toast(micOn ? 'Microphone Muted' : 'Microphone Unmuted', { icon: micOn ? '🔇' : '🎙️' });
+    const newMicState = !micOn;
+    setMicOn(newMicState);
+
+    const socket = getSocket();
+    socket.emit('media-state-toggle', {
+      meetId,
+      micOn: newMicState,
+      camOn,
+      isScreenSharing,
+    });
+
+    meetingService.updateMediaState(meetId, { micOn: newMicState, camOn, isScreenSharing }).catch(() => {});
+    toast(newMicState ? 'Microphone Unmuted' : 'Microphone Muted', { icon: newMicState ? '🎙️' : '🔇' });
   };
 
-  // Screen Sharing Option
+  // Screen Sharing Toggle (WebRTC Track replacement)
   const toggleScreenShare = async () => {
+    const socket = getSocket();
+
     if (isSharingScreen) {
+      // Stop Screen Share and revert to camera track
       if (screenStream) {
         screenStream.getTracks().forEach((track) => track.stop());
       }
       setIsSharingScreen(false);
       setScreenStream(null);
-      await meetingService.updateMediaState(meetId, { micOn, camOn, isScreenSharing: false }).catch(() => {});
+
+      // Revert video track in all active peer connections back to camera
+      if (localStreamRef.current) {
+        const camVideoTrack = localStreamRef.current.getVideoTracks()[0];
+        peersRef.current.forEach(({ pc }) => {
+          const sender = pc.getSenders().find((s) => s.track && s.track.kind === 'video');
+          if (sender && camVideoTrack) {
+            sender.replaceTrack(camVideoTrack);
+          }
+        });
+      }
+
+      socket.emit('screen-share-changed', { meetId, isSharing: false });
+      meetingService.updateMediaState(meetId, { micOn, camOn, isScreenSharing: false }).catch(() => {});
       toast('Screen Sharing Stopped');
     } else {
       try {
         if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
-          const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+          const stream = await navigator.mediaDevices.getDisplayMedia({
+            video: { cursor: 'always' },
+            audio: true,
+          });
           setScreenStream(stream);
           setIsSharingScreen(true);
-          await meetingService.updateMediaState(meetId, { micOn, camOn, isScreenSharing: true }).catch(() => {});
+
+          const screenVideoTrack = stream.getVideoTracks()[0];
+
+          // Replace camera track with desktop screen track in peer connections
+          peersRef.current.forEach(({ pc }) => {
+            const sender = pc.getSenders().find((s) => s.track && s.track.kind === 'video');
+            if (sender && screenVideoTrack) {
+              sender.replaceTrack(screenVideoTrack);
+            }
+          });
+
+          socket.emit('screen-share-changed', {
+            meetId,
+            isSharing: true,
+            userName: user?.name,
+          });
+
+          meetingService.updateMediaState(meetId, { micOn, camOn, isScreenSharing: true }).catch(() => {});
           toast.success('🖥️ Desktop Screen Sharing Started');
 
-          stream.getVideoTracks()[0].onended = async () => {
+          screenVideoTrack.onended = () => {
             setIsSharingScreen(false);
             setScreenStream(null);
-            await meetingService.updateMediaState(meetId, { micOn, camOn, isScreenSharing: false }).catch(() => {});
+            if (localStreamRef.current) {
+              const camVideoTrack = localStreamRef.current.getVideoTracks()[0];
+              peersRef.current.forEach(({ pc }) => {
+                const sender = pc.getSenders().find((s) => s.track && s.track.kind === 'video');
+                if (sender && camVideoTrack) {
+                  sender.replaceTrack(camVideoTrack);
+                }
+              });
+            }
+            socket.emit('screen-share-changed', { meetId, isSharing: false });
+            meetingService.updateMediaState(meetId, { micOn, camOn, isScreenSharing: false }).catch(() => {});
           };
         } else {
-          toast.error('Screen sharing not supported in this browser');
+          toast.error('Screen sharing capture is desktop-only on Mobile Chrome');
         }
       } catch (error) {
-        console.warn('Screen share cancelled or failed:', error.message);
+        console.warn('Screen share cancelled:', error.message);
       }
     }
   };
@@ -252,7 +635,7 @@ const MeetRoomPage = () => {
     if (isHost || isFaculty || isAdmin) {
       setIsAdmitted(true);
       setIsLobbyWaiting(false);
-      initSystemHardware();
+      await initSystemHardware();
       return;
     }
 
@@ -263,9 +646,11 @@ const MeetRoomPage = () => {
         if (res.isAdmitted) {
           setIsAdmitted(true);
           setIsLobbyWaiting(false);
-          initSystemHardware();
+          await initSystemHardware();
           toast.success('Admitted to meeting!');
         } else {
+          const socket = getSocket();
+          socket.emit('lobby-request-join', { meetId, user });
           toast.success('Join request sent to teacher');
         }
       }
@@ -279,8 +664,12 @@ const MeetRoomPage = () => {
     try {
       const res = await meetingService.respondJoinRequest(meetId, studentId, action);
       if (res.success) {
+        const socket = getSocket();
+        socket.emit('lobby-respond-join', { meetId, studentId, action });
         toast.success(`Student request ${action === 'admit' ? 'Admitted' : 'Denied'}`);
-        syncMeeting();
+        setPendingLobbyUsers((prev) =>
+          prev.filter((u) => (u._id || u.id)?.toString() !== studentId?.toString())
+        );
       }
     } catch (error) {
       toast.error('Failed to respond to join request');
@@ -292,22 +681,25 @@ const MeetRoomPage = () => {
     try {
       const res = await meetingService.admitAllJoinRequests(meetId);
       if (res.success) {
+        const socket = getSocket();
+        socket.emit('lobby-admit-all', { meetId });
         toast.success('All pending student requests admitted!');
-        syncMeeting();
+        setPendingLobbyUsers([]);
       }
     } catch (error) {
       toast.error('Failed to admit all students');
     }
   };
 
-  // Host Remove / Kick Student Anytime
+  // Host Remove / Kick Student
   const handleRemoveStudent = async (studentId) => {
     if (!window.confirm('Remove this student from the live call?')) return;
     try {
       const res = await meetingService.removeParticipant(meetId, studentId);
       if (res.success) {
+        const socket = getSocket();
+        socket.emit('kick-participant', { meetId, studentId });
         toast.success('Student removed from live call');
-        syncMeeting();
       }
     } catch (error) {
       toast.error('Failed to remove student');
@@ -319,9 +711,15 @@ const MeetRoomPage = () => {
     try {
       const res = await meetingService.toggleRaiseHand(meetId);
       if (res.success) {
-        setHandRaised(res.isHandRaised);
-        toast(res.isHandRaised ? '✋ Hand Raised' : 'Hand Lowered', { icon: '✋' });
-        syncMeeting();
+        const newHandState = res.isHandRaised;
+        setHandRaised(newHandState);
+        const socket = getSocket();
+        socket.emit('raise-hand-toggle', {
+          meetId,
+          userId: user?._id || user?.id,
+          isHandRaised: newHandState,
+        });
+        toast(newHandState ? '✋ Hand Raised' : 'Hand Lowered', { icon: '✋' });
       }
     } catch (error) {
       toast.error('Failed to toggle raise hand');
@@ -335,26 +733,30 @@ const MeetRoomPage = () => {
 
     try {
       const res = await meetingService.sendChatMessage(meetId, chatText);
-      if (res.success) {
+      if (res.success && res.message) {
+        const socket = getSocket();
+        socket.emit('chat-message-send', { meetId, message: res.message });
         setChatText('');
-        syncMeeting();
       }
     } catch (error) {
       toast.error('Failed to send message');
     }
   };
 
-  // End Call for Everyone (Host) or Leave Call (Student)
+  // Leave Call or End Call
   const handleLeaveCall = async () => {
+    const socket = getSocket();
     cleanupStreams();
+
     try {
       await meetingService.leaveMeeting(meetId);
     } catch (e) {
-      console.log('Error leaving meeting:', e);
+      console.log('Error leaving meeting API:', e);
     }
 
     if (isHost) {
-      await meetingService.endMeeting(meetId);
+      socket.emit('end-meeting-session', { meetId });
+      await meetingService.endMeeting(meetId).catch(() => {});
       toast.success('Meeting session ended for everyone.');
     } else {
       toast('Left the meeting session.');
@@ -367,21 +769,8 @@ const MeetRoomPage = () => {
     toast.success('Meeting link copied to clipboard!');
   };
 
-  // Unique Admitted Participants (Deduplicated)
-  const uniqueAdmittedParticipants = Array.from(
-    new Map(
-      (meeting?.admittedParticipants || [])
-        .filter((p) => p && (p._id || p))
-        .map((p) => [typeof p === 'object' ? p._id.toString() : p.toString(), p])
-    ).values()
-  );
-
-  // Active Screen Sharer Details
-  const activeSharerId = meeting?.activeScreenSharer?.userId
-    ? (meeting.activeScreenSharer.userId._id || meeting.activeScreenSharer.userId).toString()
-    : null;
-  const activeSharerName = meeting?.activeScreenSharer?.userName;
-  const showScreenStage = isSharingScreen || (activeSharerId && activeSharerName);
+  // Active Screen Share view logic
+  const showScreenStage = isSharingScreen || activeScreenSharer !== null;
 
   if (loading) {
     return (
@@ -461,37 +850,37 @@ const MeetRoomPage = () => {
 
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-950/80 text-emerald-400 border border-emerald-800">
             <ShieldCheck className="w-3.5 h-3.5" />
-            Encrypted Live Call
+            Encrypted WebRTC Call
           </span>
         </div>
       </header>
 
       {/* Host Real-Time Lobby Admission Alert Banner */}
-      {isHost && meeting?.pendingRequests?.length > 0 && (
+      {isHost && pendingLobbyUsers.length > 0 && (
         <div className="absolute top-20 left-1/2 -translate-x-1/2 z-50 glass-panel p-4 rounded-2xl border border-amber-500/50 bg-slate-900/95 text-white space-y-3 shadow-2xl min-w-[340px]">
           <div className="flex items-center justify-between text-xs font-bold text-amber-400">
-            <span>Students asking to join ({meeting.pendingRequests.length})</span>
+            <span>Students asking to join ({pendingLobbyUsers.length})</span>
             <button
               onClick={handleAdmitAll}
               className="px-3 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-extrabold flex items-center gap-1 shadow-sm"
             >
-              <Check className="w-3.5 h-3.5" /> Admit All Students
+              <Check className="w-3.5 h-3.5" /> Admit All
             </button>
           </div>
 
           <div className="space-y-2 max-h-36 overflow-y-auto">
-            {meeting.pendingRequests.map((reqUser) => (
-              <div key={reqUser._id} className="flex items-center justify-between p-2 rounded-xl bg-slate-800/80 text-xs">
+            {pendingLobbyUsers.map((reqUser) => (
+              <div key={reqUser._id || reqUser.id} className="flex items-center justify-between p-2 rounded-xl bg-slate-800/80 text-xs">
                 <span className="font-semibold text-slate-200">{reqUser.name}</span>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => handleRespondJoin(reqUser._id, 'admit')}
+                    onClick={() => handleRespondJoin(reqUser._id || reqUser.id, 'admit')}
                     className="p-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] flex items-center gap-1"
                   >
                     <Check className="w-3.5 h-3.5" /> Admit
                   </button>
                   <button
-                    onClick={() => handleRespondJoin(reqUser._id, 'deny')}
+                    onClick={() => handleRespondJoin(reqUser._id || reqUser.id, 'deny')}
                     className="p-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-[11px] flex items-center gap-1"
                   >
                     <X className="w-3.5 h-3.5" /> Deny
@@ -503,115 +892,115 @@ const MeetRoomPage = () => {
         </div>
       )}
 
-      {/* Main Call View Layout */}
-      <div className="flex-1 p-4 md:p-6 flex gap-4 overflow-hidden relative">
-        <div className="flex-1 flex flex-col gap-4 min-w-0">
-          
-          {/* Main Google Meet-Style Screen Sharing Presenter Stage */}
-          {showScreenStage && (
-            <div className="relative bg-slate-900 rounded-3xl border-2 border-indigo-500/80 overflow-hidden flex-1 min-h-[320px] flex items-center justify-center shadow-2xl">
-              {isSharingScreen && screenStream ? (
-                <VideoStream stream={screenStream} isMuted={true} className="w-full h-full object-contain bg-black" />
-              ) : (
-                <div className="flex flex-col items-center justify-center space-y-3 p-8 text-center bg-slate-950/90 w-full h-full">
-                  <Monitor className="w-16 h-16 text-indigo-400 animate-pulse" />
-                  <p className="text-sm font-bold text-white">Live Desktop Screen Presentation in Progress</p>
-                  <p className="text-xs text-slate-400">Presenter: {activeSharerName || 'Presenter'}</p>
-                </div>
-              )}
-              <div className="absolute top-4 left-4 bg-indigo-950/90 border border-indigo-700 px-4 py-2 rounded-2xl text-xs font-black text-indigo-200 flex items-center gap-2 shadow-lg z-10">
-                <Monitor className="w-4 h-4 text-indigo-400 animate-pulse" />
-                <span>Active Screen Presentation: {activeSharerName || user?.name}</span>
+      {/* Main Call View Layout (Google Meet-Style Responsive Layout) */}
+      <div className="flex-1 p-4 md:p-6 flex flex-col lg:flex-row gap-4 overflow-hidden relative">
+        
+        {/* Main Stage (Shared Desktop Presentation) */}
+        {showScreenStage && (
+          <div className="flex-1 bg-slate-900 rounded-3xl border-2 border-indigo-500/80 overflow-hidden min-h-[300px] flex items-center justify-center shadow-2xl relative">
+            {isSharingScreen && screenStream ? (
+              <VideoStream stream={screenStream} isMuted={true} className="w-full h-full object-contain bg-black" />
+            ) : remoteScreenStream ? (
+              <VideoStream stream={remoteScreenStream} isMuted={false} className="w-full h-full object-contain bg-black" />
+            ) : (
+              <div className="flex flex-col items-center justify-center space-y-3 p-8 text-center bg-slate-950/90 w-full h-full">
+                <Monitor className="w-16 h-16 text-indigo-400 animate-pulse" />
+                <p className="text-sm font-bold text-white">Live Desktop Screen Presentation in Progress</p>
+                <p className="text-xs text-slate-400">Presenter: {activeScreenSharer?.userName || 'Presenter'}</p>
               </div>
+            )}
+
+            <div className="absolute top-4 left-4 bg-indigo-950/90 border border-indigo-700 px-4 py-2 rounded-2xl text-xs font-black text-indigo-200 flex items-center gap-2 shadow-lg z-10">
+              <Monitor className="w-4 h-4 text-indigo-400 animate-pulse" />
+              <span>Active Presentation: {activeScreenSharer?.userName || user?.name}</span>
             </div>
-          )}
-
-          {/* Video Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 flex-1 overflow-y-auto">
-            {/* Local Video Tile */}
-            <div className="relative bg-slate-900 rounded-3xl border border-slate-800 overflow-hidden min-h-[220px] max-h-[380px] flex items-center justify-center shadow-lg">
-              {camOn && mediaStream ? (
-                <VideoStream stream={mediaStream} isMuted={true} className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-20 h-20 rounded-full bg-slate-800 flex items-center justify-center text-2xl font-black text-white ring-4 ring-slate-700">
-                  {user?.name?.charAt(0)}
-                </div>
-              )}
-
-              {/* Raised Hand Badge Overlay */}
-              {handRaised && (
-                <div className="absolute top-4 right-4 bg-amber-500 text-slate-950 font-black text-xs px-3 py-1 rounded-full shadow-lg flex items-center gap-1.5 animate-bounce z-10">
-                  <Hand className="w-4 h-4" /> Hand Raised
-                </div>
-              )}
-
-              <div className="absolute bottom-4 left-4 bg-slate-950/80 backdrop-blur-md px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 z-10">
-                <span>{user?.name} (You)</span>
-                {micOn ? <Mic className="w-3.5 h-3.5 text-emerald-400" /> : <MicOff className="w-3.5 h-3.5 text-rose-400" />}
-              </div>
-            </div>
-
-            {/* Other Admitted Participants Video Tiles (Deduplicated) */}
-            {uniqueAdmittedParticipants
-              .filter((p) => {
-                if (!p) return false;
-                const pId = typeof p === 'object' ? (p._id ? p._id.toString() : '') : p?.toString();
-                const currentUserId = (user?._id || user?.id || '')?.toString();
-                return pId && currentUserId && pId !== currentUserId;
-              })
-              .map((part) => {
-                const partIdStr = typeof part === 'object' ? part._id?.toString() : part.toString();
-                const isPartHost = partIdStr === (meeting?.host?._id ? meeting.host._id.toString() : meeting?.host?.toString());
-                const hasHandUp = meeting?.raisedHands?.some((h) => {
-                  const hId = typeof h === 'object' ? (h._id ? h._id.toString() : '') : h.toString();
-                  return hId === partIdStr;
-                });
-                const partName = typeof part === 'object' ? part.name : 'Participant';
-                const partImg = typeof part === 'object' ? part.profileImage : '';
-
-                // Get participant media state
-                const pMediaState = meeting?.participantMediaStates?.find(
-                  (ms) => (ms.user?._id || ms.user)?.toString() === partIdStr
-                );
-                const isPartCamOn = pMediaState ? pMediaState.camOn : true;
-                const isPartMicOn = pMediaState ? pMediaState.micOn : true;
-
-                return (
-                  <div
-                    key={partIdStr || Math.random()}
-                    className="relative bg-slate-900 rounded-3xl border border-slate-800 overflow-hidden min-h-[220px] max-h-[380px] flex items-center justify-center shadow-lg"
-                  >
-                    {isPartCamOn && partImg ? (
-                      <img
-                        src={partImg}
-                        alt={partName}
-                        className="w-full h-full object-cover opacity-90"
-                      />
-                    ) : (
-                      <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-brand-600 to-indigo-600 flex items-center justify-center text-white font-black text-3xl shadow-glow ring-4 ring-slate-800">
-                        {partName?.charAt(0) || 'P'}
-                      </div>
-                    )}
-
-                    {hasHandUp && (
-                      <div className="absolute top-4 right-4 bg-amber-500 text-slate-950 font-black text-xs px-3 py-1 rounded-full shadow-lg flex items-center gap-1.5 animate-bounce z-10">
-                        <Hand className="w-4 h-4" /> Hand Raised
-                      </div>
-                    )}
-
-                    <div className="absolute bottom-4 left-4 bg-slate-950/80 backdrop-blur-md px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 z-10">
-                      <span>{partName} {isPartHost && '(Host)'}</span>
-                      {isPartMicOn ? <Mic className="w-3.5 h-3.5 text-emerald-400" /> : <MicOff className="w-3.5 h-3.5 text-rose-400" />}
-                    </div>
-                  </div>
-                );
-              })}
           </div>
+        )}
+
+        {/* Participant Video Tiles Grid */}
+        <div
+          className={`${
+            showScreenStage
+              ? 'w-full lg:w-80 flex lg:flex-col gap-4 overflow-x-auto lg:overflow-y-auto max-h-[220px] lg:max-h-full'
+              : 'flex-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto'
+          }`}
+        >
+          {/* Local Video Tile (Self) */}
+          <div className="relative bg-slate-900 rounded-3xl border border-slate-800 overflow-hidden min-h-[200px] lg:min-h-[220px] max-h-[360px] flex items-center justify-center shadow-lg shrink-0 w-64 lg:w-full">
+            {camOn && localStream ? (
+              <VideoStream stream={localStream} isMuted={true} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-20 h-20 rounded-full bg-slate-800 flex items-center justify-center text-2xl font-black text-white ring-4 ring-slate-700">
+                {user?.name?.charAt(0) || 'Y'}
+              </div>
+            )}
+
+            {/* Local Raised Hand Badge */}
+            {handRaised && (
+              <div className="absolute top-4 right-4 bg-amber-500 text-slate-950 font-black text-xs px-3 py-1 rounded-full shadow-lg flex items-center gap-1.5 animate-bounce z-10">
+                <Hand className="w-4 h-4" /> Hand Raised
+              </div>
+            )}
+
+            <div className="absolute bottom-4 left-4 bg-slate-950/80 backdrop-blur-md px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 z-10">
+              <span>{user?.name} (You)</span>
+              {micOn ? <Mic className="w-3.5 h-3.5 text-emerald-400" /> : <MicOff className="w-3.5 h-3.5 text-rose-400" />}
+            </div>
+          </div>
+
+          {/* Remote Participants WebRTC Video Tiles */}
+          {remotePeers.map(({ socketId: peerSocketId, stream: peerStream, user: peerUser, micOn: pMic, camOn: pCam }) => {
+            const peerIdStr = (peerUser?._id || peerUser?.id || '')?.toString();
+            const hasHandUp = raisedHandsList.some(
+              (h) => (h._id || h).toString() === peerIdStr
+            );
+
+            return (
+              <div
+                key={peerSocketId}
+                className="relative bg-slate-900 rounded-3xl border border-slate-800 overflow-hidden min-h-[200px] lg:min-h-[220px] max-h-[360px] flex items-center justify-center shadow-lg shrink-0 w-64 lg:w-full"
+              >
+                {/* Live WebRTC Video Stream Player */}
+                {pCam && peerStream ? (
+                  <VideoStream stream={peerStream} isMuted={false} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-brand-600 to-indigo-600 flex items-center justify-center text-white font-black text-3xl shadow-glow ring-4 ring-slate-800">
+                    {peerUser?.name?.charAt(0) || 'P'}
+                  </div>
+                )}
+
+                {/* Remote Audio Track Player (In case video is hidden/off, audio still plays) */}
+                {peerStream && (
+                  <audio
+                    ref={(audioEl) => {
+                      if (audioEl && audioEl.srcObject !== peerStream) {
+                        audioEl.srcObject = peerStream;
+                        audioEl.play().catch(() => {});
+                      }
+                    }}
+                    autoPlay
+                    className="hidden"
+                  />
+                )}
+
+                {hasHandUp && (
+                  <div className="absolute top-4 right-4 bg-amber-500 text-slate-950 font-black text-xs px-3 py-1 rounded-full shadow-lg flex items-center gap-1.5 animate-bounce z-10">
+                    <Hand className="w-4 h-4" /> Hand Raised
+                  </div>
+                )}
+
+                <div className="absolute bottom-4 left-4 bg-slate-950/80 backdrop-blur-md px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 z-10">
+                  <span>{peerUser?.name || 'Participant'}</span>
+                  {pMic ? <Mic className="w-3.5 h-3.5 text-emerald-400" /> : <MicOff className="w-3.5 h-3.5 text-rose-400" />}
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         {/* Side Panel Drawer (Participants or Q&A Chat) */}
         {activeDrawer && (
-          <aside className="w-80 bg-slate-900 rounded-3xl border border-slate-800 flex flex-col justify-between overflow-hidden shadow-2xl z-40">
+          <aside className="w-full lg:w-80 bg-slate-900 rounded-3xl border border-slate-800 flex flex-col justify-between overflow-hidden shadow-2xl z-40">
             <div className="p-4 border-b border-slate-800 flex items-center justify-between">
               <h4 className="text-sm font-bold uppercase tracking-wider text-slate-200">
                 {activeDrawer === 'participants' ? 'People in Call' : 'In-Call Q&A Chat'}
@@ -629,22 +1018,27 @@ const MeetRoomPage = () => {
                   <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded">Host</span>
                 </div>
 
-                <p className="text-[11px] font-bold text-slate-400 uppercase pt-2">Students ({uniqueAdmittedParticipants.length})</p>
-                {uniqueAdmittedParticipants.map((p) => {
-                  const pId = p._id || p;
-                  const isPartHost = pId?.toString() === (meeting?.host?._id || meeting?.host)?.toString();
-                  if (isPartHost) return null;
+                <p className="text-[11px] font-bold text-slate-400 uppercase pt-2">Connected Participants ({remotePeers.length + 1})</p>
+                
+                {/* Local User */}
+                <div className="flex items-center justify-between p-2 rounded-xl bg-slate-800/40 text-xs">
+                  <span className="text-slate-300 font-semibold">{user?.name} (You)</span>
+                  {handRaised && <span className="text-amber-400 font-bold">✋ Raised</span>}
+                </div>
+
+                {/* Remote Users */}
+                {remotePeers.map(({ socketId: sId, user: pUser }) => {
+                  const pId = pUser?._id || pUser?.id;
+                  const isHandUp = raisedHandsList.some((h) => (h._id || h).toString() === pId?.toString());
 
                   return (
-                    <div key={pId} className="flex items-center justify-between p-2 rounded-xl bg-slate-800/40 text-xs">
+                    <div key={sId} className="flex items-center justify-between p-2 rounded-xl bg-slate-800/40 text-xs">
                       <div className="flex items-center gap-2 truncate">
-                        <span className="text-slate-300 font-semibold">{p.name || 'Student'}</span>
-                        {meeting?.raisedHands?.some((h) => (h._id || h) === pId) && (
-                          <span className="text-amber-400 font-bold">✋ Raised</span>
-                        )}
+                        <span className="text-slate-300 font-semibold">{pUser?.name || 'Student'}</span>
+                        {isHandUp && <span className="text-amber-400 font-bold">✋ Raised</span>}
                       </div>
 
-                      {(isHost || isFaculty || isAdmin) && (
+                      {(isHost || isFaculty || isAdmin) && pId && (
                         <button
                           onClick={() => handleRemoveStudent(pId)}
                           className="p-1.5 rounded-lg bg-rose-950/80 hover:bg-rose-900 text-rose-400 hover:text-rose-200 text-[10px] font-bold flex items-center gap-1 border border-rose-900/50"
@@ -662,14 +1056,14 @@ const MeetRoomPage = () => {
             {activeDrawer === 'chat' && (
               <div className="flex-1 flex flex-col justify-between p-4 overflow-hidden">
                 <div className="flex-1 overflow-y-auto space-y-3 pr-1">
-                  {meeting?.messages?.length === 0 ? (
+                  {messages.length === 0 ? (
                     <p className="text-xs text-slate-500 text-center py-6">No chat messages yet. Ask a question below.</p>
                   ) : (
-                    meeting?.messages?.map((msg, idx) => (
+                    messages.map((msg, idx) => (
                       <div key={idx} className="p-2.5 rounded-xl bg-slate-800/80 space-y-1">
                         <div className="flex items-center justify-between text-[11px]">
                           <span className="font-bold text-brand-400">{msg.senderName}</span>
-                          <span className="text-slate-500 text-[9px]">{new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          <span className="text-slate-500 text-[9px]">{new Date(msg.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
                         <p className="text-xs text-slate-200 leading-snug">{msg.content}</p>
                       </div>
@@ -696,7 +1090,7 @@ const MeetRoomPage = () => {
       </div>
 
       {/* Floating Control Bar */}
-      <footer className="px-6 py-4 bg-slate-900/90 backdrop-blur-md border-t border-slate-800 flex items-center justify-center gap-4 z-30">
+      <footer className="px-6 py-4 bg-slate-900/90 backdrop-blur-md border-t border-slate-800 flex items-center justify-center gap-3 sm:gap-4 z-30 flex-wrap">
         <button
           onClick={toggleMicrophone}
           className={`p-3.5 rounded-2xl font-bold transition-all shadow-lg flex items-center justify-center ${
@@ -745,11 +1139,9 @@ const MeetRoomPage = () => {
           title="View People in Call"
         >
           <Users className="w-5 h-5" />
-          {uniqueAdmittedParticipants.length > 0 && (
-            <span className="absolute -top-1 -right-1 bg-brand-500 text-white font-black text-[10px] w-5 h-5 rounded-full flex items-center justify-center">
-              {uniqueAdmittedParticipants.length}
-            </span>
-          )}
+          <span className="absolute -top-1 -right-1 bg-brand-500 text-white font-black text-[10px] w-5 h-5 rounded-full flex items-center justify-center">
+            {remotePeers.length + 1}
+          </span>
         </button>
 
         <button
@@ -764,7 +1156,7 @@ const MeetRoomPage = () => {
 
         <button
           onClick={handleLeaveCall}
-          className="px-6 py-3.5 rounded-2xl font-bold text-xs bg-rose-600 hover:bg-rose-700 text-white shadow-glow flex items-center gap-2 ml-4"
+          className="px-6 py-3.5 rounded-2xl font-bold text-xs bg-rose-600 hover:bg-rose-700 text-white shadow-glow flex items-center gap-2"
         >
           <PhoneOff className="w-5 h-5" />
           {isHost ? 'End Call for All' : 'Leave Call'}
