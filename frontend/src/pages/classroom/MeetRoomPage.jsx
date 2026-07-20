@@ -1202,9 +1202,7 @@ const MeetRoomPage = () => {
       {/* Header Bar */}
       <header className="px-4 sm:px-6 py-3 sm:py-4 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 flex items-center justify-between z-30 shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-brand-600 flex items-center justify-center text-white font-black text-xs shadow-glow">
-            SV
-          </div>
+          <img src="/logo.png" alt="StuVaradhi Logo" className="w-8 h-8 sm:w-9 sm:h-9 object-contain drop-shadow-md" />
           <div>
             <h1 className="font-extrabold text-xs sm:text-sm text-white truncate max-w-[180px] sm:max-w-xs">{meeting?.title}</h1>
             <p className="text-[10px] text-slate-400 hidden sm:block">Host: {meeting?.host?.name || 'Faculty Instructor'}</p>

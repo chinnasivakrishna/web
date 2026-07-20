@@ -44,9 +44,11 @@ const Navbar = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
         {/* Brand Logo & Tagline */}
         <Link to="/" className="flex items-center gap-3 group">
-          <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-brand-600 to-indigo-500 flex items-center justify-center text-white shadow-glow group-hover:scale-105 transition-transform duration-300">
-            <GraduationCap className="w-6 h-6" />
-          </div>
+          <img
+            src="/logo.png"
+            alt="StuVaradhi Logo"
+            className="w-11 h-11 object-contain drop-shadow-md group-hover:scale-105 transition-transform duration-300"
+          />
           <div>
             <div className="flex items-center gap-1.5">
               <span className="text-xl font-black tracking-tight text-slate-900 dark:text-white">

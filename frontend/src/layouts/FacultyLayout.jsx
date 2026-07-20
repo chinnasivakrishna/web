@@ -47,9 +47,7 @@ const FacultyLayout = ({ children }) => {
           {/* Brand */}
           <div className="flex items-center justify-between">
             <Link to="/faculty/dashboard" className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-glow">
-                <GraduationCap className="w-6 h-6" />
-              </div>
+              <img src="/logo.png" alt="StuVaradhi Logo" className="w-10 h-10 object-contain drop-shadow-md" />
               <div>
                 <h1 className="font-extrabold text-lg tracking-tight text-white">
                   Stu<span className="text-indigo-400">Varadhi</span>

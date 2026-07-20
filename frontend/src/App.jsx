@@ -48,6 +48,7 @@ import StudentSettingsPage from './pages/student/StudentSettingsPage';
 // Classroom & Live Google Meet Pages
 import ClassroomDetailPage from './pages/classroom/ClassroomDetailPage';
 import MeetRoomPage from './pages/classroom/MeetRoomPage';
+import VerifyCertificatePage from './pages/certificate/VerifyCertificatePage';
 
 function App() {
   return (
@@ -78,6 +79,9 @@ function App() {
               <Route path="login" element={<LoginPage />} />
               <Route path="forgot-password" element={<ForgotPasswordPage />} />
               <Route path="reset-password/:token" element={<ResetPasswordPage />} />
+              <Route path="verify-certificate/:certificateId" element={<VerifyCertificatePage />} />
+              <Route path="verify/:certificateId" element={<VerifyCertificatePage />} />
+              <Route path="certificate/:certificateId" element={<VerifyCertificatePage />} />
 
               {/* Faculty Public Auth */}
               <Route path="faculty/register" element={<FacultyRegisterPage />} />

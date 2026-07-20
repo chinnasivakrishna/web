@@ -2,7 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { classroomService } from '../../services/classroomService';
 import { meetingService } from '../../services/meetingService';
+import { certificateService } from '../../services/certificateService';
 import { useAuth } from '../../context/AuthContext';
+import CertificateTemplate from '../../components/certificate/CertificateTemplate';
 import {
   BookOpen,
   Users,
@@ -20,6 +22,9 @@ import {
   CheckCircle2,
   Send,
   Clock,
+  Award,
+  Check,
+  Eye,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -30,7 +35,7 @@ const ClassroomDetailPage = () => {
 
   const [classroom, setClassroom] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('resources'); // 'resources', 'announcements', or 'doubts'
+  const [activeTab, setActiveTab] = useState('resources'); // 'resources', 'announcements', 'doubts', or 'certificates'
 
   const currentUserId = (user?._id || user?.id)?.toString();
   const hasPendingDoubt = classroom?.doubts?.some((d) => {
@@ -53,6 +58,11 @@ const ClassroomDetailPage = () => {
   const [replyDoubtModal, setReplyDoubtModal] = useState(null); // stores active doubt object to reply
   const [answerText, setAnswerText] = useState('');
 
+  // Certificate state
+  const [classroomCertificates, setClassroomCertificates] = useState([]);
+  const [viewCertModal, setViewCertModal] = useState(null);
+  const [issuingCertId, setIssuingCertId] = useState(null);
+
   const fetchClassroom = async () => {
     try {
       const data = await classroomService.getClassroomById(id);
@@ -66,8 +76,30 @@ const ClassroomDetailPage = () => {
     }
   };
 
+  const fetchCertificates = async () => {
+    try {
+      if (isFaculty || isAdmin) {
+        const res = await certificateService.getClassroomCertificates(id);
+        if (res.success) {
+          setClassroomCertificates(res.certificates || []);
+        }
+      } else {
+        const res = await certificateService.getMyCertificates();
+        if (res.success) {
+          const myCert = (res.certificates || []).find(
+            (c) => (c.classroom?._id || c.classroom)?.toString() === id
+          );
+          if (myCert) setClassroomCertificates([myCert]);
+        }
+      }
+    } catch (err) {
+      console.log('Error loading certificates:', err.message);
+    }
+  };
+
   useEffect(() => {
     fetchClassroom();
+    fetchCertificates();
   }, [id]);
 
   const handleUploadFile = async (e) => {
@@ -119,13 +151,13 @@ const ClassroomDetailPage = () => {
     try {
       const res = await classroomService.askDoubt(id, questionText);
       if (res.success) {
-        toast.success('Doubt submitted! Your mentor will answer soon.');
+        toast.success('Doubt submitted to teacher!');
         setAskDoubtModal(false);
         setQuestionText('');
         fetchClassroom();
       }
     } catch (error) {
-      toast.error('Failed to submit doubt');
+      toast.error(error.response?.data?.message || 'Failed to submit doubt');
     }
   };
 
@@ -136,7 +168,7 @@ const ClassroomDetailPage = () => {
     try {
       const res = await classroomService.answerDoubt(id, replyDoubtModal._id, answerText);
       if (res.success) {
-        toast.success('Doubt cleared and resolved!');
+        toast.success('Doubt marked as resolved!');
         setReplyDoubtModal(null);
         setAnswerText('');
         fetchClassroom();
@@ -161,6 +193,28 @@ const ClassroomDetailPage = () => {
       }
     }
     navigate(`/classroom/${id}/meet/${meetId}`);
+  };
+
+  // Faculty Mark Course Completed & Issue Certificate
+  const handleIssueCertificate = async (studentId) => {
+    setIssuingCertId(studentId);
+    try {
+      const res = await certificateService.issueCertificate({
+        studentId,
+        classroomId: id,
+        grade: 'Excellence',
+      });
+
+      if (res.success && res.certificate) {
+        toast.success('🎓 Course Completed & Certificate Issued Successfully!');
+        setViewCertModal(res.certificate);
+        fetchCertificates();
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to issue certificate');
+    } finally {
+      setIssuingCertId(null);
+    }
   };
 
   if (loading) {
@@ -242,7 +296,7 @@ const ClassroomDetailPage = () => {
 
       {/* Navigation Tabs */}
       <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3 flex-wrap gap-4">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 flex-wrap">
           <button
             onClick={() => setActiveTab('resources')}
             className={`pb-3 text-xs font-bold border-b-2 transition-all ${
@@ -274,6 +328,18 @@ const ClassroomDetailPage = () => {
             }`}
           >
             Class Feed & Announcements ({classroom.announcements?.length || 0})
+          </button>
+
+          <button
+            onClick={() => setActiveTab('certificates')}
+            className={`pb-3 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 ${
+              activeTab === 'certificates'
+                ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+                : 'border-transparent text-slate-500 hover:text-slate-900'
+            }`}
+          >
+            <Award className="w-4 h-4 text-amber-500" />
+            Certificates & Completion 🎓
           </button>
         </div>
 
@@ -354,90 +420,69 @@ const ClassroomDetailPage = () => {
         </div>
       )}
 
-      {/* Tab 2: Classroom Doubts & Q&A Clearing */}
+      {/* Tab 2: Doubts & Q&A Clearing */}
       {activeTab === 'doubts' && (
         <div className="space-y-4">
           {classroom.doubts?.length === 0 ? (
-            <div className="glass-card p-12 rounded-3xl text-center space-y-3 border border-slate-200 dark:border-slate-800">
-              <HelpCircle className="w-10 h-10 text-slate-400 mx-auto" />
-              <h4 className="text-base font-bold text-slate-900 dark:text-white">No Doubts Raised Yet</h4>
-              <p className="text-xs text-slate-500 max-w-md mx-auto">
-                Students can click "Ask a Doubt / Question" to post questions. Faculty & Admins clear and answer them here.
-              </p>
+            <div className="glass-card p-12 rounded-3xl text-center space-y-2 border border-slate-200 dark:border-slate-800">
+              <HelpCircle className="w-8 h-8 text-slate-400 mx-auto" />
+              <p className="text-sm font-bold text-slate-900 dark:text-white">No Doubts Raised Yet</p>
+              <p className="text-xs text-slate-500">Students can ask questions here for teacher clarification.</p>
             </div>
           ) : (
             <div className="space-y-4">
-              {classroom.doubts.slice().reverse().map((doubt) => (
+              {classroom.doubts.map((doubt) => (
                 <div
                   key={doubt._id}
-                  className="glass-card p-6 rounded-3xl border border-slate-200/80 dark:border-slate-800 space-y-4"
+                  className="glass-card p-6 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4"
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      {doubt.student?.profileImage ? (
-                        <img
-                          src={doubt.student.profileImage}
-                          alt={doubt.student.name}
-                          className="w-8 h-8 rounded-xl object-cover ring-2 ring-indigo-500"
-                        />
-                      ) : (
-                        <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-xs ring-2 ring-indigo-500">
-                          {doubt.student?.name?.charAt(0) || 'S'}
-                        </div>
-                      )}
-                      <div>
-                        <p className="text-xs font-bold text-slate-900 dark:text-white">{doubt.student?.name || 'Student'}</p>
-                        <p className="text-[10px] text-slate-400">{new Date(doubt.createdAt).toLocaleString()}</p>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-sm text-slate-900 dark:text-white">
+                          {doubt.student?.name || 'Student'}
+                        </span>
+                        <span className="text-[10px] text-slate-400">
+                          {new Date(doubt.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
                       </div>
+                      <p className="text-xs text-slate-700 dark:text-slate-300 font-medium">{doubt.question}</p>
                     </div>
 
                     <span
-                      className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-full border ${
+                      className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
                         doubt.status === 'resolved'
-                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-300'
-                          : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border-amber-300'
+                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                          : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
                       }`}
                     >
-                      {doubt.status === 'resolved' ? '✓ Resolved' : '⏳ Pending Answer'}
+                      {doubt.status}
                     </span>
                   </div>
 
-                  {/* Question Content */}
-                  <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/80 border border-slate-200/60 dark:border-slate-800 space-y-1">
-                    <p className="text-xs font-extrabold text-slate-400 uppercase tracking-wider text-[10px]">Student Doubt:</p>
-                    <p className="text-xs font-semibold text-slate-900 dark:text-white leading-relaxed">{doubt.question}</p>
-                  </div>
-
-                  {/* Answers Section */}
+                  {/* Answers */}
                   {doubt.answers?.length > 0 && (
-                    <div className="space-y-3 pl-4 border-l-2 border-indigo-500/40">
-                      <p className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase">Faculty Answer:</p>
+                    <div className="pl-4 border-l-2 border-indigo-500 space-y-2">
                       {doubt.answers.map((ans, aIdx) => (
-                        <div key={aIdx} className="p-3 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/40 space-y-1">
-                          <div className="flex items-center justify-between text-[11px]">
-                            <span className="font-bold text-indigo-900 dark:text-indigo-300">{ans.author?.name || 'Faculty Mentor'}</span>
-                            <span className="text-[10px] text-slate-400">{new Date(ans.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                          </div>
-                          <p className="text-xs text-slate-800 dark:text-slate-200">{ans.answer}</p>
+                        <div key={aIdx} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 text-xs space-y-1">
+                          <p className="font-bold text-indigo-600 dark:text-indigo-400">
+                            {ans.author?.name || 'Faculty Instructor'}
+                          </p>
+                          <p className="text-slate-700 dark:text-slate-300">{ans.answer}</p>
                         </div>
                       ))}
                     </div>
                   )}
 
-                  {/* Faculty Answer Action */}
-                  {canShareFiles && (
-                    <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-end">
-                      <button
-                        onClick={() => {
-                          setReplyDoubtModal(doubt);
-                          setAnswerText('');
-                        }}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm"
-                      >
-                        <Send className="w-3.5 h-3.5" />
-                        Reply & Clear Doubt
-                      </button>
-                    </div>
+                  {/* Faculty Reply Action */}
+                  {(isFaculty || isAdmin) && doubt.status === 'pending' && (
+                    <button
+                      onClick={() => setReplyDoubtModal(doubt)}
+                      className="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm flex items-center gap-1.5"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" />
+                      Answer & Resolve Doubt
+                    </button>
                   )}
                 </div>
               ))}
@@ -446,52 +491,152 @@ const ClassroomDetailPage = () => {
         </div>
       )}
 
-      {/* Tab 3: Announcements Feed */}
+      {/* Tab 3: Announcements */}
       {activeTab === 'announcements' && (
         <div className="space-y-6">
           {canShareFiles && (
             <form onSubmit={handlePostAnnouncement} className="glass-card p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
               <textarea
                 rows={3}
-                required
                 value={announcementText}
                 onChange={(e) => setAnnouncementText(e.target.value)}
-                placeholder="Post an announcement or update to your classroom..."
-                className="w-full px-4 py-2.5 rounded-xl text-xs bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-indigo-500"
+                placeholder="Write an announcement for all classroom students..."
+                className="w-full p-3 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white"
               />
               <button
                 type="submit"
-                className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm"
+                className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm flex items-center gap-1.5"
               >
-                Post Update
+                <Send className="w-3.5 h-3.5" />
+                Post Announcement
               </button>
             </form>
           )}
 
           <div className="space-y-4">
-            {classroom.announcements?.length === 0 ? (
-              <p className="text-xs text-slate-500 text-center py-6">No class updates posted yet.</p>
-            ) : (
-              classroom.announcements.slice().reverse().map((ann, idx) => (
-                <div key={idx} className="glass-card p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-bold text-slate-900 dark:text-white">{ann.author?.name || 'Instructor'}</span>
-                    <span className="text-slate-400">{new Date(ann.createdAt).toLocaleString()}</span>
-                  </div>
-                  <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">{ann.content}</p>
+            {classroom.announcements?.map((anc) => (
+              <div key={anc._id} className="glass-card p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-indigo-600 dark:text-indigo-400">{anc.author?.name || 'Instructor'}</span>
+                  <span className="text-[10px] text-slate-400">{new Date(anc.createdAt).toLocaleDateString()}</span>
                 </div>
-              ))
-            )}
+                <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">{anc.content}</p>
+              </div>
+            ))}
           </div>
         </div>
       )}
 
-      {/* Modal 1: Upload File to Backend Server */}
+      {/* Tab 4: Certificates & Course Completion 🎓 */}
+      {activeTab === 'certificates' && (
+        <div className="space-y-6">
+          <div className="glass-card p-6 rounded-3xl border border-indigo-500/20 bg-slate-900 text-white space-y-3 shadow-xl">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold">
+                <Award className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-black">Official Course Completion Credentials</h3>
+                <p className="text-xs text-slate-400">
+                  {isFaculty || isAdmin
+                    ? 'Faculty Control: Mark student as completed to automatically generate & issue official QR-verifiable certificate.'
+                    : 'Download your official QR-verifiable Course Completion Certificate in PNG & PDF formats.'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Faculty Student Completion List */}
+          {(isFaculty || isAdmin) ? (
+            <div className="glass-card p-6 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-4">
+              <h4 className="text-sm font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                Enrolled Students ({classroom.students?.length || 0})
+              </h4>
+
+              {classroom.students?.length === 0 ? (
+                <p className="text-xs text-slate-500 py-4 text-center">No students currently enrolled in this classroom.</p>
+              ) : (
+                <div className="space-y-3">
+                  {classroom.students?.map((studentObj) => {
+                    const sId = typeof studentObj === 'object' ? (studentObj._id || studentObj.id)?.toString() : studentObj?.toString();
+                    const sName = typeof studentObj === 'object' ? studentObj.name : 'Student';
+                    const sEmail = typeof studentObj === 'object' ? studentObj.email : '';
+                    
+                    const existingCert = classroomCertificates.find(
+                      (c) => (c.student?._id || c.student)?.toString() === sId
+                    );
+
+                    return (
+                      <div
+                        key={sId}
+                        className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-brand-600 to-indigo-600 text-white flex items-center justify-center font-bold text-sm">
+                            {sName.charAt(0)}
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-slate-900 dark:text-white">{sName}</p>
+                            <p className="text-[11px] text-slate-400">{sEmail}</p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+                          {existingCert ? (
+                            <div className="flex items-center gap-2">
+                              <span className="px-3 py-1 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> Completed 🎓
+                              </span>
+
+                              <button
+                                onClick={() => setViewCertModal(existingCert)}
+                                className="px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-1 shadow-sm"
+                              >
+                                <Eye className="w-3.5 h-3.5" /> View Certificate
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => handleIssueCertificate(sId)}
+                              disabled={issuingCertId === sId}
+                              className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 shadow-glow transition-all flex items-center gap-1.5"
+                            >
+                              <Award className="w-4 h-4" />
+                              {issuingCertId === sId ? 'Generating Certificate...' : 'Mark Completed & Issue Certificate'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Student Certificate View */
+            <div className="space-y-6">
+              {classroomCertificates.length === 0 ? (
+                <div className="glass-card p-12 rounded-3xl text-center space-y-3 border border-slate-200 dark:border-slate-800">
+                  <Award className="w-10 h-10 text-slate-400 mx-auto" />
+                  <h4 className="text-base font-bold text-slate-900 dark:text-white">Certificate Pending</h4>
+                  <p className="text-xs text-slate-500 max-w-md mx-auto">
+                    Your host faculty mentor will mark your course as completed upon verifying your classroom performance. Your verifiable certificate will appear here.
+                  </p>
+                </div>
+              ) : (
+                <CertificateTemplate certificate={classroomCertificates[0]} showActions={true} />
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Modal 1: Shared File Upload */}
       {uploadModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="glass-card max-w-md w-full p-6 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 space-y-6">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">Upload File / Document to Backend</h3>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">Upload Shared Material</h3>
               <button onClick={() => setUploadModal(false)} className="text-slate-400 hover:text-slate-600">
                 <X className="w-5 h-5" />
               </button>
@@ -613,6 +758,25 @@ const ClassroomDetailPage = () => {
                 Clear Doubt & Send Answer
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal 4: Full Certificate Preview & Download Modal */}
+      {viewCertModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+          <div className="glass-card max-w-5xl w-full p-6 rounded-3xl border border-slate-800 bg-slate-900 text-white space-y-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-2">
+                <Award className="w-5 h-5 text-amber-500" />
+                <h3 className="text-base font-bold text-white">Course Completion Certificate Preview</h3>
+              </div>
+              <button onClick={() => setViewCertModal(null)} className="text-slate-400 hover:text-white">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <CertificateTemplate certificate={viewCertModal} showActions={true} />
           </div>
         </div>
       )}

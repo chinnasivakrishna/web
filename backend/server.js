@@ -63,6 +63,7 @@ const adminRoutes = require('./routes/adminRoutes');
 const classroomRoutes = require('./routes/classroomRoutes');
 const courseRoutes = require('./routes/courseRoutes');
 const meetingRoutes = require('./routes/meetingRoutes');
+const certificateRoutes = require('./routes/certificateRoutes');
 
 // API Route Mounting (Supports both /api/v1 and /api prefixes)
 app.use(['/api/v1/auth', '/api/auth'], authRoutes);
@@ -70,6 +71,7 @@ app.use(['/api/v1/admin', '/api/admin'], adminRoutes);
 app.use(['/api/v1/classrooms', '/api/classrooms'], classroomRoutes);
 app.use(['/api/v1/courses', '/api/courses'], courseRoutes);
 app.use(['/api/v1/meetings', '/api/meetings'], meetingRoutes);
+app.use(['/api/v1/certificates', '/api/certificates'], certificateRoutes);
 
 // Global 404 Route Handler
 app.use('*', (req, res) => {
