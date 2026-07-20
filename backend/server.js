@@ -115,6 +115,20 @@ io.on('connection', (socket) => {
     });
   });
 
+  // Explicit Peer Connection Request
+  socket.on('request-peers', ({ meetId }) => {
+    if (roomParticipants.has(meetId)) {
+      const participants = roomParticipants.get(meetId);
+      const existingUsers = Array.from(participants.entries())
+        .filter(([sId]) => sId !== socket.id)
+        .map(([sId, uData]) => ({
+          socketId: sId,
+          user: uData,
+        }));
+      socket.emit('existing-participants', existingUsers);
+    }
+  });
+
   // WebRTC Mesh Signaling: Offer
   socket.on('webrtc-offer', ({ toSocketId, offer, callerUser }) => {
     io.to(toSocketId).emit('webrtc-offer', {

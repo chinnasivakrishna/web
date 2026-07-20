@@ -104,7 +104,7 @@ exports.updateStudentStatus = async (req, res, next) => {
       await sendEmail({
         email: student.email,
         subject: 'Your StuVaradhi Account Has Been Approved!',
-        message: `Hello ${student.name},\n\nYour account has been approved. You can now login to StuVaradhi.\n\nLogin URL: ${process.env.CLIENT_URL || 'http://localhost:5173'}/login\n\nWelcome to StuVaradhi - Bridging Students to Success!`,
+        message: `Hello ${student.name},\n\nYour account has been approved. You can now login to StuVaradhi.\n\nLogin URL: ${process.env.CLIENT_URL || 'https://web-flax-beta-32.vercel.app'}/login\n\nWelcome to StuVaradhi - Bridging Students to Success!`,
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
             <div style="text-align: center; margin-bottom: 20px;">
@@ -118,7 +118,7 @@ exports.updateStudentStatus = async (req, res, next) => {
             </p>
             <p>You now have full access to our online training courses, learning resources, and career pathways.</p>
             <div style="text-align: center; margin: 30px 0;">
-              <a href="${process.env.CLIENT_URL || 'http://localhost:5173'}/login" style="background-color: #4f46e5; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Login to StuVaradhi</a>
+              <a href="${process.env.CLIENT_URL || 'https://web-flax-beta-32.vercel.app'}/login" style="background-color: #4f46e5; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Login to StuVaradhi</a>
             </div>
             <p style="color: #6b7280; font-size: 13px;">If you have any questions, feel free to reply to this email.</p>
           </div>
@@ -309,7 +309,7 @@ exports.updateFacultyStatus = async (req, res, next) => {
       await sendEmail({
         email: faculty.email,
         subject: 'StuVaradhi Faculty Account Approved!',
-        message: `Hello ${faculty.name},\n\nYour Faculty Mentor account has been approved by platform Administration.\n\nYou can now login to your Faculty Portal: ${process.env.CLIENT_URL || 'http://localhost:5173'}/faculty/login\n\nWelcome to StuVaradhi!`,
+        message: `Hello ${faculty.name},\n\nYour Faculty Mentor account has been approved by platform Administration.\n\nYou can now login to your Faculty Portal: ${process.env.CLIENT_URL || 'https://web-flax-beta-32.vercel.app'}/faculty/login\n\nWelcome to StuVaradhi!`,
       });
     }
 

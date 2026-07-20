@@ -220,7 +220,7 @@ exports.forgotPassword = async (req, res, next) => {
     await user.save({ validateBeforeSave: false });
 
     // Create reset URL
-    const resetUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/reset-password/${resetToken}`;
+    const resetUrl = `${process.env.CLIENT_URL || 'https://web-flax-beta-32.vercel.app'}/reset-password/${resetToken}`;
 
     const message = `Hello ${user.name},\n\nYou requested a password reset for your StuVaradhi account.\n\nPlease click on the following link to reset your password:\n${resetUrl}\n\nThis link will expire in 10 minutes.\n\nIf you did not request this, please ignore this email.`;
 

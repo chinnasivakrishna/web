@@ -5,7 +5,7 @@ let socket = null;
 export const initSocket = () => {
   if (!socket) {
     let socketUrl = import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_URL || '';
-    
+
     if (socketUrl.endsWith('/api/v1')) {
       socketUrl = socketUrl.replace('/api/v1', '');
     } else if (socketUrl.endsWith('/api')) {
@@ -13,7 +13,6 @@ export const initSocket = () => {
     }
 
     if (!socketUrl) {
-      // Check window host or fallback to target backend url
       if (window.location.hostname === 'localhost') {
         socketUrl = 'https://web-blld.onrender.com';
       } else {
@@ -27,15 +26,14 @@ export const initSocket = () => {
       reconnection: true,
       reconnectionAttempts: 20,
       reconnectionDelay: 1000,
-      withCredentials: true,
     });
 
     socket.on('connect', () => {
-      console.log('✅ Socket connected successfully:', socket.id);
+      console.log('✅ Socket connected successfully to backend:', socket.id);
     });
 
     socket.on('connect_error', (err) => {
-      console.warn('⚠️ Socket connection error (retrying):', err.message);
+      console.warn('⚠️ Socket connection error:', err.message);
     });
   }
   return socket;
