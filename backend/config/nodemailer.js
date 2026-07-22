@@ -4,7 +4,7 @@ const sendEmail = async (options) => {
   try {
     let transporter;
 
-    if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS && process.env.SMTP_USER !== 'stuvaradhi.official@gmail.com') {
+    if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
       transporter = nodemailer.createTransport({
         host: process.env.SMTP_HOST,
         port: process.env.SMTP_PORT || 587,
@@ -23,7 +23,7 @@ const sendEmail = async (options) => {
     }
 
     const message = {
-      from: `"${process.env.FROM_NAME || 'StuVaradhi Platform'}" <${process.env.FROM_EMAIL || 'noreply@stuvaradhi.com'}>`,
+      from: `"${process.env.FROM_NAME || 'StuVaradhi Platform'}" <${process.env.FROM_EMAIL || 'support@stuvaradhi.in'}>`,
       to: options.email,
       subject: options.subject,
       text: options.message,

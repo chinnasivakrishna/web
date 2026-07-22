@@ -217,8 +217,8 @@ exports.enrollInCourse = async (req, res, next) => {
       });
     }
 
-    const sendEmail = require('../utils/sendEmail');
-    const adminEmail = process.env.FROM_EMAIL || 'stuvaradhi.official@gmail.com';
+    const sendEmail = require('../config/nodemailer');
+    const adminEmail = process.env.FROM_EMAIL || 'support@stuvaradhi.in';
 
     // 1. Send Notification Email to FROM_EMAIL (Platform Admin)
     try {
