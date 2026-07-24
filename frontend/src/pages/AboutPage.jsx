@@ -1,9 +1,15 @@
 import React from 'react';
 import { Target, ShieldCheck, Users, Award, Sparkles } from 'lucide-react';
+import SEO from '../components/SEO';
 
 const AboutPage = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-16">
+      <SEO 
+        title="About Us"
+        description="Learn about StuVaradhi (Bridging Students to Success), our mission to deliver hands-on technical instruction, industry-aligned curriculums, and verified career support for aspiring software engineers."
+        keywords={['about StuVaradhi', 'StuVaradhi mission', 'tech education', 'hands-on instruction', 'career support']}
+      />
       {/* Header */}
       <div className="text-center max-w-3xl mx-auto space-y-4">
         <span className="text-xs font-bold uppercase tracking-wider text-brand-600 dark:text-brand-400">

@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { useAuth } from '../context/AuthContext';
 import { Shield, Mail, Lock, LogIn, Sparkles } from 'lucide-react';
 import toast from 'react-hot-toast';
+import SEO from '../components/SEO';
 
 const AdminLoginPage = () => {
   const { adminLogin } = useAuth();
@@ -33,6 +34,11 @@ const AdminLoginPage = () => {
 
   return (
     <div className="min-h-[85vh] flex items-center justify-center px-4 py-12 bg-slate-900">
+      <SEO 
+        title="Admin Login"
+        description="Authenticate to access the StuVaradhi Admin Dashboard control panel."
+        preventIndexing={true}
+      />
       <div className="glass-card max-w-md w-full p-8 rounded-3xl border border-slate-800 bg-slate-950/80 space-y-6 shadow-2xl text-white">
         <div className="text-center space-y-2">
           <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-brand-600 to-indigo-600 flex items-center justify-center text-white mx-auto shadow-glow">

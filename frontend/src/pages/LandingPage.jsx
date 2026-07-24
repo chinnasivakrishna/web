@@ -22,6 +22,7 @@ import {
 import CourseCard from '../components/CourseCard';
 import { courseService } from '../services/courseService';
 import { CourseSkeleton } from '../components/Skeletons';
+import SEO from '../components/SEO';
 
 const LandingPage = () => {
   const [courses, setCourses] = useState([]);
@@ -187,6 +188,11 @@ const LandingPage = () => {
 
   return (
     <div className="space-y-24 pb-20 overflow-hidden">
+      <SEO 
+        title="Home - Bridging Students to Success"
+        description="StuVaradhi is a premier online training platform offering industry-aligned courses in MERN Stack, Data Science, DevOps, hands-on internships, and career mentorship for students."
+        keywords={['StuVaradhi', 'online courses', 'MERN Stack training', 'Data Science internship', 'DevOps training', 'career mentorship', 'student internship']}
+      />
       {/* 1. HERO SECTION */}
       <section className="relative pt-12 lg:pt-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
         <div className="gradient-glow top-10 left-10 w-96 h-96 bg-brand-500/20" />

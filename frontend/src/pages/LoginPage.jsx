@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { useAuth } from '../context/AuthContext';
 import { GraduationCap, Mail, Lock, LogIn, Clock, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
+import SEO from '../components/SEO';
 
 const LoginPage = () => {
   const { login } = useAuth();
@@ -49,6 +50,11 @@ const LoginPage = () => {
 
   return (
     <div className="min-h-[80vh] flex items-center justify-center px-4 py-12">
+      <SEO 
+        title="Student Login"
+        description="Log in to the StuVaradhi Student Portal to access your classrooms, view assignments, join live Google Meet sessions, and check your certificates."
+        preventIndexing={true}
+      />
       <div className="glass-card max-w-md w-full p-8 rounded-3xl border border-slate-200/80 dark:border-slate-800 space-y-6 shadow-2xl">
         <div className="text-center space-y-2">
           <div className="w-12 h-12 rounded-2xl bg-brand-600 flex items-center justify-center text-white mx-auto shadow-glow">

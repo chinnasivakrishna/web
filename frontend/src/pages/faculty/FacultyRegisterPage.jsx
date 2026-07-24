@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { authService } from '../../services/authService';
 import { GraduationCap, Mail, Lock, User, Phone, Briefcase, Clock, Sparkles } from 'lucide-react';
 import toast from 'react-hot-toast';
+import SEO from '../../components/SEO';
 
 const FacultyRegisterPage = () => {
   const [loading, setLoading] = useState(false);
@@ -32,6 +33,11 @@ const FacultyRegisterPage = () => {
 
   return (
     <div className="min-h-[85vh] flex items-center justify-center px-4 py-12">
+      <SEO 
+        title="Faculty Application"
+        description="Apply to become a mentor/faculty member on StuVaradhi. Share your technical expertise, mentor talented students, and manage interactive digital classrooms."
+        preventIndexing={true}
+      />
       <div className="glass-card max-w-md w-full p-8 rounded-3xl border border-slate-200/80 dark:border-slate-800 space-y-6 shadow-2xl">
         <div className="text-center space-y-2">
           <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center text-white mx-auto shadow-glow">

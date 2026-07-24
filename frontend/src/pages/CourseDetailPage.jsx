@@ -13,6 +13,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import SEO from '../components/SEO';
 
 const CourseDetailPage = () => {
   const { slug } = useParams();
@@ -84,8 +85,35 @@ const CourseDetailPage = () => {
     );
   }
 
+  const courseSchema = {
+    "@context": "https://schema.org",
+    "@type": "Course",
+    "name": course.title,
+    "description": course.description,
+    "provider": {
+      "@type": "Organization",
+      "name": "StuVaradhi",
+      "sameAs": window.location.origin
+    },
+    "offers": {
+      "@type": "Offer",
+      "price": course.discountPrice || course.price || 0,
+      "priceCurrency": "INR",
+      "category": "Paid"
+    },
+    "educationalLevel": course.level,
+    "about": course.skills || []
+  };
+
   return (
     <div className="space-y-12 pb-16">
+      <SEO 
+        title={course.title}
+        description={course.description}
+        keywords={course.skills || []}
+        ogImage={course.thumbnail}
+        schema={courseSchema}
+      />
       {/* Course Banner */}
       <section className="bg-slate-900 text-white py-12 lg:py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">

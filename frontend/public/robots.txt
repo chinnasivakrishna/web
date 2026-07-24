@@ -1,0 +1,13 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /faculty/
+Disallow: /dashboard
+Disallow: /profile
+Disallow: /my-courses
+Disallow: /my-classrooms
+Disallow: /settings
+Disallow: /classroom/
+Disallow: /classroom/*
+
+Sitemap: https://stuvaradhi.com/sitemap.xml

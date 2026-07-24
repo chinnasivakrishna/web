@@ -1,6 +1,7 @@
 import React from 'react';
 import { Mail, Phone, MapPin, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
+import SEO from '../components/SEO';
 
 const ContactPage = () => {
   const handleSubmit = (e) => {
@@ -11,6 +12,11 @@ const ContactPage = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-12">
+      <SEO 
+        title="Contact Us"
+        description="Get in touch with the StuVaradhi support team. Reach out to us for student registrations, admissions, admin approval inquiries, and career guidance."
+        keywords={['contact StuVaradhi', 'student support', 'admissions inquiry', 'career guidance helpline']}
+      />
       <div className="text-center max-w-2xl mx-auto space-y-3">
         <span className="text-xs font-bold uppercase tracking-wider text-brand-600 dark:text-brand-400">
           Support Hub

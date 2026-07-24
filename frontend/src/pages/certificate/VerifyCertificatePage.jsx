@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { certificateService } from '../../services/certificateService';
 import CertificateTemplate from '../../components/certificate/CertificateTemplate';
 import { ShieldCheck, CheckCircle2, AlertTriangle, ArrowLeft, ExternalLink, Sparkles, Award } from 'lucide-react';
+import SEO from '../../components/SEO';
 
 const VerifyCertificatePage = () => {
   const { certificateId } = useParams();
@@ -44,8 +45,38 @@ const VerifyCertificatePage = () => {
       })
     : '';
 
+  const getSEOProps = () => {
+    if (loading) {
+      return {
+        title: 'Verify Academic Certificate',
+        description: 'Verify the authenticity of a StuVaradhi academic certificate registry ID.'
+      };
+    }
+    if (error) {
+      return {
+        title: 'Unverified Certificate',
+        description: `Academic certificate verification failed. ${error}`,
+        preventIndexing: true
+      };
+    }
+    if (certificate) {
+      return {
+        title: `Verified: ${certificate.studentName} - ${certificate.courseTitle}`,
+        description: `Official verified StuVaradhi academic certificate of completion for ${certificate.studentName} in ${certificate.courseTitle}. Issued: ${formattedCompletedDate}.`,
+        keywords: [certificate.studentName, certificate.courseTitle, 'StuVaradhi Certificate', 'Verify Credential']
+      };
+    }
+    return {
+      title: 'Verify Certificate',
+      description: 'Official academic certificate registry portal.'
+    };
+  };
+
+  const seoProps = getSEOProps();
+
   return (
     <div className="min-h-screen bg-slate-950 text-white py-10 px-4 sm:px-6 lg:px-8 font-sans">
+      <SEO {...seoProps} />
       <div className="max-w-4xl mx-auto space-y-8">
         
         {/* Verification Header Navigation Bar */}

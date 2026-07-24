@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { useAuth } from '../../context/AuthContext';
 import { GraduationCap, Mail, Lock, LogIn, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
+import SEO from '../../components/SEO';
 
 const FacultyLoginPage = () => {
   const { facultyLogin } = useAuth();
@@ -42,6 +43,11 @@ const FacultyLoginPage = () => {
 
   return (
     <div className="min-h-[85vh] flex items-center justify-center px-4 py-12">
+      <SEO 
+        title="Faculty Login"
+        description="Log in to the StuVaradhi Faculty Portal to manage your classes, create announcements, host Google Meet live streams, and grade assignments."
+        preventIndexing={true}
+      />
       <div className="glass-card max-w-md w-full p-8 rounded-3xl border border-slate-200/80 dark:border-slate-800 space-y-6 shadow-2xl">
         <div className="text-center space-y-2">
           <div className="w-14 h-14 rounded-2xl bg-indigo-600 flex items-center justify-center text-white mx-auto shadow-glow">
