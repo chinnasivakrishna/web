@@ -57,6 +57,21 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Robots.txt for public API access to override Render's global block
+app.get('/robots.txt', (req, res) => {
+  res.type('text/plain');
+  res.send(
+    "User-agent: *\n" +
+    "Allow: /api/v1/courses\n" +
+    "Allow: /api/courses\n" +
+    "Allow: /api/v1/courses/slug/\n" +
+    "Allow: /api/courses/slug/\n" +
+    "Allow: /api/v1/certificates/verify/\n" +
+    "Allow: /api/certificates/verify/\n" +
+    "Disallow: /\n"
+  );
+});
+
 // Import Route Handlers
 const authRoutes = require('./routes/authRoutes');
 const adminRoutes = require('./routes/adminRoutes');

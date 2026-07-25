@@ -10,4 +10,4 @@ Disallow: /settings
 Disallow: /classroom/
 Disallow: /classroom/*
 
-Sitemap: https://stuvaradhi.in/sitemap.xml
+Sitemap: https://www.stuvaradhi.in/sitemap.xml
