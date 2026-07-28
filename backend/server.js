@@ -96,6 +96,19 @@ app.get('/robots.txt', (req, res) => {
   );
 });
 
+// Dynamic sitemap.xml route to serve the sitemap dynamically
+const { generateSitemapXML } = require('./utils/sitemapGenerator');
+app.get(['/sitemap.xml', '/api/v1/sitemap.xml', '/api/sitemap.xml'], async (req, res) => {
+  try {
+    const xml = await generateSitemapXML();
+    res.header('Content-Type', 'application/xml');
+    res.status(200).send(xml);
+  } catch (error) {
+    console.error('Error serving dynamic sitemap:', error);
+    res.status(500).send('Error generating sitemap');
+  }
+});
+
 // Import Route Handlers
 const authRoutes = require('./routes/authRoutes');
 const adminRoutes = require('./routes/adminRoutes');

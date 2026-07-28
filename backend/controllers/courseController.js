@@ -1,4 +1,20 @@
 const Course = require('../models/Course');
+const { generateSitemapXML, writeSitemapToFile } = require('../utils/sitemapGenerator');
+const { submitSitemapToGoogle } = require('../utils/googleConsole');
+
+// Helper to trigger sitemap updates and Search Console submission in the background
+const triggerSitemapUpdate = () => {
+  generateSitemapXML()
+    .then((xml) => {
+      return writeSitemapToFile(xml);
+    })
+    .then(() => {
+      return submitSitemapToGoogle();
+    })
+    .catch((err) => {
+      console.error('[Sitemap-Trigger] Error in sitemap update routine:', err.message);
+    });
+};
 
 // Utility to slugify titles
 const slugify = (text) => {
@@ -136,6 +152,9 @@ exports.createCourse = async (req, res, next) => {
       createdBy: req.user.id,
     });
 
+    // Trigger sitemap regeneration and submission to Google Search Console
+    triggerSitemapUpdate();
+
     res.status(201).json({
       success: true,
       message: 'Course created successfully',
@@ -169,6 +188,9 @@ exports.updateCourse = async (req, res, next) => {
       runValidators: true,
     });
 
+    // Trigger sitemap regeneration and submission to Google Search Console
+    triggerSitemapUpdate();
+
     res.status(200).json({
       success: true,
       message: 'Course updated successfully',
@@ -194,6 +216,9 @@ exports.deleteCourse = async (req, res, next) => {
     }
 
     await Course.findByIdAndDelete(req.params.id);
+
+    // Trigger sitemap regeneration and submission to Google Search Console
+    triggerSitemapUpdate();
 
     res.status(200).json({
       success: true,
