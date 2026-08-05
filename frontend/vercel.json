@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/sitemap.xml",
-      "destination": "https://your-backend-server.onrender.com/sitemap.xml"
+      "destination": "https://web-blld.onrender.com/sitemap.xml"
     },
     {
       "source": "/(.*)",
