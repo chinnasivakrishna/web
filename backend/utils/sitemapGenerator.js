@@ -35,7 +35,7 @@ const generateSitemapXML = async () => {
   courses.forEach((course) => {
     const lastModDate = course.updatedAt ? new Date(course.updatedAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
     xml += `  <url>\n`;
-    xml += `    <loc>${siteUrl}/courses/${course.slug}</loc>\n`;
+    xml += `    <loc>${siteUrl}/course/${course.slug}</loc>\n`;
     xml += `    <lastmod>${lastModDate}</lastmod>\n`;
     xml += `    <changefreq>weekly</changefreq>\n`;
     xml += `    <priority>0.8</priority>\n`;
